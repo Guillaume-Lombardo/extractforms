@@ -29,6 +29,9 @@ Deliver high-quality, maintainable increments for a Python package and its CLI/A
 - Do not stop at CI success when Copilot review is still pending.
 - Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
 - Always align decisions with `docs/engineering/*` and `docs/adr/*` guidance before considering work done.
+- Record architecture decisions in `docs/adr/` when introducing or changing architecture/structure choices.
+- Enforce unit-test layout parity under `tests/unit/...` without adding an extra `extractforms` directory segment.
+- Example: `src/extractforms/backends/multimodal_openai.py` maps to `tests/unit/backends/test_multimodal_openai.py`.
 - Never modify `ruff.toml` unless explicitly requested by the user.
 
 ## Extraction Strategy Guardrails
@@ -49,9 +52,12 @@ A feature is done only if:
 - lint/format/type checks pass
 - dead code pass is completed and unused code is removed
 - docs/plan updates are applied when architecture or behavior changes
+- `docs/adr/*` is updated when architecture decisions are introduced or revised
 - `README.md` is synchronized with user-facing behavior and commands
 - `.env.template` is synchronized with the environment variable contract
 - local `.env` is updated for validation before push/PR
+- modified code uses Google-style docstrings with explicit argument/return types
+- `tests/unit` structure mirrors `src/extractforms`
 
 ## Non-Goals (for now)
 

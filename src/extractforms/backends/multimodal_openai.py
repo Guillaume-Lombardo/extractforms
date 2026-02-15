@@ -46,7 +46,7 @@ class MultimodalLLMBackend:
         """Initialize backend.
 
         Args:
-            settings: Runtime settings.
+            settings (Settings): Runtime settings.
         """
         self._settings = settings
 
@@ -54,7 +54,7 @@ class MultimodalLLMBackend:
         """Send one completion request.
 
         Args:
-            payload: Request payload.
+            payload (dict[str, Any]): Request payload.
 
         Raises:
             BackendError: If request fails or endpoint is misconfigured.
@@ -110,7 +110,7 @@ class MultimodalLLMBackend:
         """Build image content chunk.
 
         Args:
-            page: Rendered page.
+            page (RenderedPage): Rendered page.
 
         Returns:
             dict[str, Any]: OpenAI content block.
@@ -124,7 +124,7 @@ class MultimodalLLMBackend:
         """Infer schema from rendered pages.
 
         Args:
-            pages: Rendered pages.
+            pages (list[RenderedPage]): Rendered pages.
 
         Raises:
             BackendError: If page list is empty.
@@ -173,9 +173,9 @@ class MultimodalLLMBackend:
         """Extract values for specific keys.
 
         Args:
-            pages: Rendered pages.
-            keys: Keys to extract.
-            extra_instructions: Optional prompt augmentation.
+            pages (list[RenderedPage]): Rendered pages.
+            keys (list[str]): Keys to extract.
+            extra_instructions (str | None): Optional prompt augmentation.
 
         Raises:
             BackendError: If page list is empty.

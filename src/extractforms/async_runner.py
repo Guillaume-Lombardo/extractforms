@@ -17,13 +17,13 @@ def _run_in_background_thread[T](coro: Coroutine[Any, Any, T]) -> T:
     """Run a coroutine in a dedicated thread with its own event loop.
 
     Args:
-        coro: The coroutine to run.
+        coro (Coroutine[Any, Any, T]): The coroutine to run.
 
     Raises:
         AsyncExecutionError: If the coroutine raises an exception.
 
     Returns:
-        The result of the coroutine.
+        T: The result of the coroutine.
     """
     output: Queue[T | BaseException] = Queue(maxsize=1)
 
@@ -51,10 +51,10 @@ def run_async[T](coro: Coroutine[Any, Any, T]) -> T:
     be awaited directly.
 
     Args:
-        coro: The coroutine to run.
+        coro (Coroutine[Any, Any, T]): The coroutine to run.
 
     Returns:
-        The result of the coroutine.
+        T: The result of the coroutine.
     """
     try:
         asyncio.get_running_loop()

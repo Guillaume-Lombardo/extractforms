@@ -11,7 +11,7 @@ def _is_module_available(module_name: str) -> bool:
     """Check whether a module can be imported.
 
     Args:
-        module_name: Python module name.
+        module_name (str): Python module name.
 
     Returns:
         bool: True if import spec exists.

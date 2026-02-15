@@ -20,7 +20,7 @@ class OCRBackend:
         """Infer schema with OCR backend.
 
         Args:
-            pages: Rendered pages.
+            pages (list[RenderedPage]): Rendered pages.
 
         Raises:
             BackendError: Always in MVP stub.
@@ -37,8 +37,8 @@ class OCRBackend:
         """Extract values with OCR backend.
 
         Args:
-            pages: Rendered pages.
-            keys: Keys to extract.
+            pages (list[RenderedPage]): Rendered pages.
+            keys (list[str]): Keys to extract.
 
         Raises:
             BackendError: Always in MVP stub.

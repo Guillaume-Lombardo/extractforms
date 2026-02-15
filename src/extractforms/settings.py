@@ -256,7 +256,7 @@ def build_ssl_context(settings: Settings) -> ssl.SSLContext:
     """Build a strict SSL context from settings.
 
     Args:
-        settings: Runtime settings.
+        settings (Settings): Runtime settings.
 
     Returns:
         ssl.SSLContext: Configured TLS context.
@@ -271,7 +271,7 @@ def _iter_no_proxy_entries(no_proxy: str | None) -> list[str]:
     """Split NO_PROXY into normalized entries.
 
     Args:
-        no_proxy: Raw NO_PROXY value.
+        no_proxy (str | None): Raw NO_PROXY value.
 
     Returns:
         list[str]: Normalized entries.
@@ -285,7 +285,7 @@ def _normalize_no_proxy_host(entry: str) -> str:
     """Normalize host entry from NO_PROXY.
 
     Args:
-        entry: Raw NO_PROXY entry.
+        entry (str): Raw NO_PROXY entry.
 
     Returns:
         str: Host expression usable for host matching.
@@ -304,7 +304,7 @@ def _compile_no_proxy_regex(no_proxy: str | None) -> NoProxyRegex | None:
     """Compile NO_PROXY host/wildcard entries as one regex.
 
     Args:
-        no_proxy: Raw NO_PROXY value.
+        no_proxy (str | None): Raw NO_PROXY value.
 
     Returns:
         NoProxyRegex | None: Compiled regex for host matching.
@@ -346,7 +346,7 @@ def _parse_no_proxy_networks(no_proxy: str | None) -> tuple[NoProxyNetwork, ...]
     """Parse CIDR entries from NO_PROXY.
 
     Args:
-        no_proxy: Raw NO_PROXY value.
+        no_proxy (str | None): Raw NO_PROXY value.
 
     Returns:
         tuple[NoProxyNetwork, ...]: Parsed networks.
@@ -365,7 +365,7 @@ def compile_no_proxy_matchers(no_proxy: str | None) -> tuple[NoProxyRegex | None
     """Compile NO_PROXY regex and CIDR networks.
 
     Args:
-        no_proxy: Raw NO_PROXY value.
+        no_proxy (str | None): Raw NO_PROXY value.
 
     Returns:
         tuple[NoProxyRegex | None, tuple[NoProxyNetwork, ...]]: Compiled host regex and networks.
@@ -377,8 +377,8 @@ def _is_no_proxy_target(target_url: str | None, settings: Settings) -> bool:
     """Return whether the target URL should bypass proxies.
 
     Args:
-        target_url: Target request URL.
-        settings: Runtime settings.
+        target_url (str | None): Target request URL.
+        settings (Settings): Runtime settings.
 
     Returns:
         bool: True when proxy must be bypassed.
@@ -411,9 +411,9 @@ def build_httpx_client_kwargs(
     """Build kwargs used for `httpx.Client` and `httpx.AsyncClient`.
 
     Args:
-        settings: Runtime settings.
-        target_url: Optional target URL used for NO_PROXY evaluation.
-        force_no_proxy: If true, always build kwargs without proxy.
+        settings (Settings): Runtime settings.
+        target_url (str | None): Optional target URL used for NO_PROXY evaluation.
+        force_no_proxy (bool): If true, always build kwargs without proxy.
 
     Returns:
         dict[str, Any]: Arguments for client constructors.

@@ -31,7 +31,7 @@ def _confidence_rank(confidence: ConfidenceLevel) -> int:
     """Return a comparable rank for confidence values.
 
     Args:
-        confidence: Confidence label.
+        confidence (ConfidenceLevel): Confidence label.
 
     Returns:
         int: Comparable rank where higher is more confident.
@@ -49,8 +49,8 @@ def _select_better_value(current: FieldValue | None, candidate: FieldValue) -> F
     """Select the better field value between current and candidate.
 
     Args:
-        current: Currently selected value for the key.
-        candidate: New candidate value.
+        current (FieldValue | None): Currently selected value for the key.
+        candidate (FieldValue): New candidate value.
 
     Returns:
         FieldValue: Selected value.
@@ -80,11 +80,11 @@ def _extract_values_for_keys(
     """Extract values for a key set with optional page chunking.
 
     Args:
-        backend: Extraction backend.
-        pages: Rendered pages.
-        keys: Keys to extract.
-        chunk_pages: Requested chunk size.
-        extra_instructions: Additional prompt instructions.
+        backend (MultimodalLLMBackend): Extraction backend.
+        pages (list[RenderedPage]): Rendered pages.
+        keys (list[str]): Keys to extract.
+        chunk_pages (int): Requested chunk size.
+        extra_instructions (str | None): Additional prompt instructions.
 
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
@@ -126,10 +126,10 @@ def _extract_values_for_page_groups(
     """Extract values for page-scoped key groups.
 
     Args:
-        backend: Extraction backend.
-        pages: Rendered pages.
-        keys_by_page: Keys grouped by page number.
-        extra_instructions: Additional prompt instructions.
+        backend (MultimodalLLMBackend): Extraction backend.
+        pages (list[RenderedPage]): Rendered pages.
+        keys_by_page (dict[int, list[str]]): Keys grouped by page number.
+        extra_instructions (str | None): Additional prompt instructions.
 
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
@@ -162,10 +162,10 @@ def _collect_schema_values(
     """Collect extracted values and pricing calls for a schema.
 
     Args:
-        schema: Schema used for extraction.
-        request: Extraction request.
-        backend: Extraction backend.
-        pages: Rendered pages.
+        schema (SchemaSpec): Schema used for extraction.
+        request (ExtractRequest): Extraction request.
+        backend (MultimodalLLMBackend): Extraction backend.
+        pages (list[RenderedPage]): Rendered pages.
 
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
@@ -209,10 +209,10 @@ def _build_result(
     """Build normalized extraction result.
 
     Args:
-        schema: Reference schema.
-        values: Extracted values from backend.
-        null_sentinel: Null fallback value.
-        pricing: Aggregated pricing.
+        schema (SchemaSpec): Reference schema.
+        values (list[FieldValue]): Extracted values from backend.
+        null_sentinel (str): Null fallback value.
+        pricing (PricingCall | None): Aggregated pricing.
 
     Returns:
         ExtractionResult: Normalized result.
@@ -252,8 +252,8 @@ def infer_schema(request: ExtractRequest, settings: Settings) -> tuple[SchemaSpe
     """Infer schema from a document.
 
     Args:
-        request: Extraction request.
-        settings: Runtime settings.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
 
     Returns:
         tuple[SchemaSpec, PricingCall | None]: Inferred schema and pricing.
@@ -283,7 +283,7 @@ def _group_keys_by_page(schema: SchemaSpec) -> dict[int, list[str]]:
     """Group schema keys by page.
 
     Args:
-        schema: Schema to group.
+        schema (SchemaSpec): Schema to group.
 
     Returns:
         dict[int, list[str]]: Keys by page.
@@ -304,9 +304,9 @@ def extract_values(
     """Extract values using an existing schema.
 
     Args:
-        schema: Schema used for extraction.
-        request: Extraction request.
-        settings: Runtime settings.
+        schema (SchemaSpec): Schema used for extraction.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
 
     Returns:
         tuple[ExtractionResult, PricingCall | None]: Result and pricing.
@@ -345,8 +345,8 @@ def extract_one_pass(
     """Run one-pass extraction.
 
     Args:
-        request: Extraction request.
-        settings: Runtime settings.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
 
     Returns:
         tuple[ExtractionResult, PricingCall | None]: Result and pricing.
@@ -365,9 +365,9 @@ def match_schema(pdf: Path, schemas_store: SchemaStore, _settings: Settings) -> 
     """Match document against schema cache.
 
     Args:
-        pdf: PDF to match.
-        schemas_store: Schema storage.
-        _settings: Runtime settings (currently unused; reserved for future matching configuration).
+        pdf (Path): PDF to match.
+        schemas_store (SchemaStore): Schema storage.
+        _settings (Settings): Runtime settings (currently unused; reserved for future matching configuration).
 
     Returns:
         MatchResult: Match payload.
@@ -385,10 +385,10 @@ def _extract_for_schema_id(
     """Load and extract values for a schema id if found.
 
     Args:
-        store: Schema store.
-        schema_id: Candidate schema id.
-        request: Extraction request.
-        settings: Runtime settings.
+        store (SchemaStore): Schema store.
+        schema_id (str): Candidate schema id.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
 
     Returns:
         ExtractionResult | None: Extraction result when found, otherwise None.
@@ -405,9 +405,9 @@ def _extract_with_schema(schema: SchemaSpec, request: ExtractRequest, settings: 
     """Extract values with a pre-loaded schema.
 
     Args:
-        schema: Pre-loaded schema.
-        request: Extraction request.
-        settings: Runtime settings.
+        schema (SchemaSpec): Pre-loaded schema.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
 
     Returns:
         ExtractionResult: Extraction result.
@@ -424,9 +424,9 @@ def _run_one_schema_pass(
     """Handle ONE_SCHEMA_PASS extraction mode.
 
     Args:
-        request: Extraction request.
-        settings: Runtime settings.
-        store: Schema store.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+        store (SchemaStore): Schema store.
 
     Raises:
         ExtractionError: If schema identifier is missing or unknown.
@@ -451,9 +451,9 @@ def _run_two_pass(
     """Handle TWO_PASS extraction mode.
 
     Args:
-        request: Extraction request.
-        settings: Runtime settings.
-        store: Schema store.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+        store (SchemaStore): Schema store.
 
     Returns:
         ExtractionResult: Extraction result.
@@ -476,8 +476,8 @@ def persist_result(result: ExtractionResult, path: Path) -> None:
     """Persist extraction result as JSON.
 
     Args:
-        result: Result payload.
-        path: Output path.
+        result (ExtractionResult): Result payload.
+        path (Path): Output path.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
@@ -487,8 +487,8 @@ def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult
     """Top-level extraction flow used by CLI.
 
     Args:
-        request: Extraction request.
-        settings: Runtime settings.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
 
     Raises:
         ExtractionError: If request mode is unsupported.
@@ -519,7 +519,7 @@ def result_to_json_dict(result: ExtractionResult) -> dict[str, object]:
     """Return result payload for custom serialization paths.
 
     Args:
-        result: Extraction result.
+        result (ExtractionResult): Extraction result.
 
     Returns:
         dict[str, object]: JSON-serializable dictionary.
