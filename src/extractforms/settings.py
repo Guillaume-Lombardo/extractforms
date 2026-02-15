@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import logging
 import re
 import ssl
 from functools import lru_cache
@@ -23,6 +24,7 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 
 NoProxyNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 NoProxyRegex = re.Pattern[str]
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -119,6 +121,7 @@ class Settings(BaseSettings):
     _no_proxy_regex: NoProxyRegex | None = PrivateAttr(default=None)
     _no_proxy_networks: tuple[NoProxyNetwork, ...] = PrivateAttr(default=())
     _httpx_clients: dict[str, object] = PrivateAttr(default_factory=dict)
+    _close_tasks: set[asyncio.Task[None]] = PrivateAttr(default_factory=set)
 
     def model_post_init(self, __context: object, /) -> None:
         """Initialize derived runtime settings."""
@@ -182,24 +185,20 @@ class Settings(BaseSettings):
         if not self._httpx_clients:
             return
 
-        for key in ("sync_proxy", "sync_no_proxy"):
-            client = self._httpx_clients.get(key)
-            close = getattr(client, "close", None)
-            if close:
-                close()
-
-        async_clients = [self._httpx_clients.get("async_proxy"), self._httpx_clients.get("async_no_proxy")]
-
-        async def _close_async_clients() -> None:
-            for client in async_clients:
-                aclose = getattr(client, "aclose", None)
-                if aclose:
-                    await aclose()
+        self._close_sync_clients(("sync_proxy", "sync_no_proxy"))
+        async_clients = (
+            ("async_proxy", self._httpx_clients.get("async_proxy")),
+            ("async_no_proxy", self._httpx_clients.get("async_no_proxy")),
+        )
 
         try:
-            asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
         except RuntimeError:
-            asyncio.run(_close_async_clients())
+            asyncio.run(self._aclose_async_clients(async_clients))
+        else:
+            task = loop.create_task(self._aclose_async_clients(async_clients))
+            self._close_tasks.add(task)
+            task.add_done_callback(self._on_close_task_done)
 
         self._httpx_clients = {}
 
@@ -208,19 +207,49 @@ class Settings(BaseSettings):
         if not self._httpx_clients:
             return
 
-        for key in ("sync_proxy", "sync_no_proxy"):
-            client = self._httpx_clients.get(key)
-            close = getattr(client, "close", None)
-            if close:
-                close()
-
-        for key in ("async_proxy", "async_no_proxy"):
-            client = self._httpx_clients.get(key)
-            aclose = getattr(client, "aclose", None)
-            if aclose:
-                await aclose()
+        self._close_sync_clients(("sync_proxy", "sync_no_proxy"))
+        await self._aclose_async_clients(
+            (
+                ("async_proxy", self._httpx_clients.get("async_proxy")),
+                ("async_no_proxy", self._httpx_clients.get("async_no_proxy")),
+            ),
+        )
 
         self._httpx_clients = {}
+
+    def _close_sync_clients(self, keys: tuple[str, ...]) -> None:
+        """Close sync HTTPX clients with best effort."""
+        for key in keys:
+            client = self._httpx_clients.get(key)
+            close = getattr(client, "close", None)
+            if not close:
+                continue
+            try:
+                close()
+            except Exception:
+                logger.warning("Failed to close sync HTTPX client", extra={"client_key": key})
+
+    @staticmethod
+    async def _aclose_async_clients(
+        clients: tuple[tuple[str, object | None], ...],
+    ) -> None:
+        """Close async HTTPX clients with best effort."""
+        for key, client in clients:
+            aclose = getattr(client, "aclose", None)
+            if not aclose:
+                continue
+            try:
+                await aclose()
+            except Exception:
+                logger.warning("Failed to close async HTTPX client", extra={"client_key": key})
+
+    def _on_close_task_done(self, task: asyncio.Task[None]) -> None:
+        """Handle completion of async close tasks."""
+        self._close_tasks.discard(task)
+        try:
+            task.result()
+        except Exception:
+            logger.warning("Async HTTPX close task failed")
 
 
 def build_ssl_context(settings: Settings) -> ssl.SSLContext:
@@ -286,6 +315,7 @@ def _compile_no_proxy_regex(no_proxy: str | None) -> NoProxyRegex | None:
 
     regex_parts: list[str] = []
     for entry in entries:
+        subdomain_only = entry.startswith(".")
         if entry == "*":
             return re.compile(r"^.*$", re.IGNORECASE)
 
@@ -302,6 +332,8 @@ def _compile_no_proxy_regex(no_proxy: str | None) -> NoProxyRegex | None:
         escaped = re.escape(host_pattern).replace(r"\*", ".*")
         if "*" in host_pattern or re.fullmatch(r"\d+\.\d+\.\d+\.\d+", host_pattern):
             regex_parts.append(escaped)
+        elif subdomain_only:
+            regex_parts.append(rf"(?:.*\.){escaped}")
         else:
             regex_parts.append(rf"(?:{escaped}|(?:.*\.){escaped})")
 

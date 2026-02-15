@@ -75,6 +75,24 @@ def test_build_httpx_client_kwargs_respects_no_proxy(monkeypatch) -> None:
     assert "proxy" not in kwargs
 
 
+def test_build_httpx_client_kwargs_preserves_leading_dot_semantic(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", ".internal.local")
+    settings = Settings()
+
+    subdomain_kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.internal.local/v1/chat/completions",
+    )
+    domain_kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://internal.local/v1/chat/completions",
+    )
+
+    assert "proxy" not in subdomain_kwargs
+    assert domain_kwargs["proxy"] == "http://proxy.local:8080"
+
+
 def test_build_httpx_client_kwargs_keeps_proxy_when_not_in_no_proxy(monkeypatch) -> None:
     monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
     monkeypatch.setenv("NO_PROXY", ".internal.local")
