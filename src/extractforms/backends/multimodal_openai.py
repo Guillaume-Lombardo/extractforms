@@ -11,6 +11,12 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     httpx: Any
     httpx = None
 
+try:
+    import openai as openai_sdk
+except Exception:  # pragma: no cover - optional dependency at runtime
+    openai_sdk: Any
+    openai_sdk = None
+
 from pydantic import BaseModel, ConfigDict
 
 from extractforms import logger
@@ -69,30 +75,39 @@ class MultimodalLLMBackend:
 
         if httpx is None:
             raise BackendError(message="httpx is required for multimodal backend")
+        if openai_sdk is None:
+            raise BackendError(message="openai is required for multimodal backend")
 
         client = self._settings.select_sync_httpx_client(self._settings.openai_base_url)
         if client is None:
             raise BackendError(message="httpx clients are not initialized in settings")
         http_client = cast("Any", client)
-
-        url = f"{self._settings.openai_base_url.rstrip('/')}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._settings.openai_api_key}",
-            "Content-Type": "application/json",
-        }
+        openai_client = openai_sdk.OpenAI(
+            api_key=self._settings.openai_api_key,
+            base_url=self._settings.openai_base_url,
+            http_client=http_client,
+        )
 
         try:
-            response = http_client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-        except httpx.HTTPStatusError as exc:
+            completion = openai_client.chat.completions.create(**payload)
+            data = completion.model_dump(mode="json")
+        except Exception as exc:
+            status_error_type = getattr(openai_sdk, "APIStatusError", None)
+            timeout_error_type = getattr(openai_sdk, "APITimeoutError", None)
+            connection_error_type = getattr(openai_sdk, "APIConnectionError", None)
+
+            if status_error_type and isinstance(exc, status_error_type):
+                status_code = getattr(exc, "status_code", None)
+                raise BackendError(
+                    message=f"Chat completion request failed with status {status_code}",
+                ) from exc
+            if timeout_error_type and isinstance(exc, timeout_error_type):
+                raise BackendError(message="Chat completion request timed out") from exc
+            if connection_error_type and isinstance(exc, connection_error_type):
+                raise BackendError(message=f"Chat completion request failed: {exc}") from exc
             raise BackendError(
-                message=f"Chat completion request failed with status {exc.response.status_code}",
+                message=f"Chat completion request failed: {exc}",
             ) from exc
-        except httpx.TimeoutException as exc:
-            raise BackendError(message="Chat completion request timed out") from exc
-        except httpx.RequestError as exc:
-            raise BackendError(message=f"Chat completion request failed: {exc}") from exc
 
         usage = data.get("usage", {})
         pricing = PricingCall(

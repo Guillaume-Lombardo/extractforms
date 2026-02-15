@@ -33,5 +33,8 @@ def ensure_cli_dependencies_for_extract() -> None:
     if not _is_module_available("httpx"):
         missing.append("httpx")
 
+    if not _is_module_available("openai"):
+        missing.append("openai")
+
     if missing:
         raise DependencyError(missing_package=missing, message="extract")
