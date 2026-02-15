@@ -88,6 +88,32 @@ def test_build_httpx_client_kwargs_keeps_proxy_when_not_in_no_proxy(monkeypatch)
     assert kwargs["proxy"] == "http://proxy.local:8080"
 
 
+def test_build_httpx_client_kwargs_respects_no_proxy_host_with_port(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", "api.internal.local:8443")
+    settings = Settings()
+
+    kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.internal.local/v1/chat/completions",
+    )
+
+    assert "proxy" not in kwargs
+
+
+def test_build_httpx_client_kwargs_respects_no_proxy_wildcard(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", "*")
+    settings = Settings()
+
+    kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.anywhere.local/v1/chat/completions",
+    )
+
+    assert "proxy" not in kwargs
+
+
 def test_compile_no_proxy_matchers_supports_wildcard_and_cidr() -> None:
     regex, networks = compile_no_proxy_matchers(
         "localhost, 127.0.0.*, *apim*.banque-france.fr,10.1.70.0/24,10.10.10.10/32,10.200.0.0/24",
@@ -122,3 +148,5 @@ def test_settings_initializes_httpx_clients() -> None:
     assert "sync_no_proxy" in settings.httpx_clients
     assert "async_proxy" in settings.httpx_clients
     assert "async_no_proxy" in settings.httpx_clients
+    settings.close_httpx_clients()
+    assert settings.httpx_clients == {}

@@ -1,11 +1,11 @@
 """Pytest marker auto-assignment by folder."""
 
 from __future__ import annotations
-from extractforms import logger
 
 from pathlib import Path
 
 import pytest
+from extractforms import logger
 
 
 def _mark_tests_by_directory(
@@ -22,7 +22,8 @@ def _mark_tests_by_directory(
             path = Path(str(item.fspath)).resolve()
         except Exception:
             logger.warning(
-                f"Could not resolve path for test item {item.name!s}; skipping {marker!s} marker assignment",
+                "Could not resolve path for test item; skipping marker assignment",
+                extra={"test_item_name": str(item.name), "marker": marker},
             )
             continue
 

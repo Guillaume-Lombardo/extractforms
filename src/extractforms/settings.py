@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import re
 import ssl
@@ -176,6 +177,51 @@ class Settings(BaseSettings):
             "async_no_proxy": httpx.AsyncClient(**sync_no_proxy_kwargs, limits=limits),
         }
 
+    def close_httpx_clients(self) -> None:
+        """Close cached sync/async HTTPX clients (best effort)."""
+        if not self._httpx_clients:
+            return
+
+        for key in ("sync_proxy", "sync_no_proxy"):
+            client = self._httpx_clients.get(key)
+            close = getattr(client, "close", None)
+            if close:
+                close()
+
+        async_clients = [self._httpx_clients.get("async_proxy"), self._httpx_clients.get("async_no_proxy")]
+
+        async def _close_async_clients() -> None:
+            for client in async_clients:
+                aclose = getattr(client, "aclose", None)
+                if aclose:
+                    await aclose()
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(_close_async_clients())
+
+        self._httpx_clients = {}
+
+    async def aclose_httpx_clients(self) -> None:
+        """Asynchronously close cached sync/async HTTPX clients."""
+        if not self._httpx_clients:
+            return
+
+        for key in ("sync_proxy", "sync_no_proxy"):
+            client = self._httpx_clients.get(key)
+            close = getattr(client, "close", None)
+            if close:
+                close()
+
+        for key in ("async_proxy", "async_no_proxy"):
+            client = self._httpx_clients.get(key)
+            aclose = getattr(client, "aclose", None)
+            if aclose:
+                await aclose()
+
+        self._httpx_clients = {}
+
 
 def build_ssl_context(settings: Settings) -> ssl.SSLContext:
     """Build a strict SSL context from settings.
@@ -215,9 +261,13 @@ def _normalize_no_proxy_host(entry: str) -> str:
     Returns:
         str: Host expression usable for host matching.
     """
-    candidate = entry.lower()
+    candidate = entry.lower().strip()
     if "://" in candidate:
         candidate = (urlparse(candidate).hostname or "").lower()
+    else:
+        parsed = urlparse(f"//{candidate}")
+        if parsed.hostname:
+            candidate = parsed.hostname.lower()
     return candidate.strip("[]").removeprefix(".")
 
 

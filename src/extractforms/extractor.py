@@ -19,6 +19,7 @@ from extractforms.typing.models import (
     FieldValue,
     MatchResult,
     PricingCall,
+    RenderedPage,
     SchemaSpec,
 )
 
@@ -71,7 +72,7 @@ def _select_better_value(current: FieldValue | None, candidate: FieldValue) -> F
 def _extract_values_for_keys(
     *,
     backend: MultimodalLLMBackend,
-    pages: list,
+    pages: list[RenderedPage],
     keys: list[str],
     chunk_pages: int,
     extra_instructions: str | None,
@@ -92,7 +93,7 @@ def _extract_values_for_keys(
         return [], []
 
     normalized_chunk = max(chunk_pages, 1)
-    page_batches: list[list] = []
+    page_batches: list[list[RenderedPage]] = []
     if normalized_chunk == 1 or normalized_chunk >= len(pages):
         page_batches = [pages]
     else:
@@ -118,7 +119,7 @@ def _extract_values_for_keys(
 def _extract_values_for_page_groups(
     *,
     backend: MultimodalLLMBackend,
-    pages: list,
+    pages: list[RenderedPage],
     keys_by_page: dict[int, list[str]],
     extra_instructions: str | None,
 ) -> tuple[list[FieldValue], list[PricingCall]]:
@@ -156,7 +157,7 @@ def _collect_schema_values(
     schema: SchemaSpec,
     request: ExtractRequest,
     backend: MultimodalLLMBackend,
-    pages: list,
+    pages: list[RenderedPage],
 ) -> tuple[list[FieldValue], list[PricingCall]]:
     """Collect extracted values and pricing calls for a schema.
 
