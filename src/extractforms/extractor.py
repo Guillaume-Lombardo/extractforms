@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from extractforms.async_runner import run_async
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
 from extractforms.exceptions import ExtractionError
 from extractforms.pdf_render import render_pdf_pages
@@ -69,7 +71,28 @@ def _select_better_value(current: FieldValue | None, candidate: FieldValue) -> F
     return current
 
 
-def _extract_values_for_keys(
+def _backend_concurrency(backend: MultimodalLLMBackend) -> int:
+    """Resolve backend concurrency setting with a safe fallback.
+
+    Args:
+        backend (MultimodalLLMBackend): Backend instance.
+
+    Returns:
+        int: Effective concurrency (minimum 1).
+    """
+    settings_obj = getattr(backend, "settings", None)
+    if settings_obj is None:
+        settings_obj = getattr(backend, "_settings", None)
+
+    raw_value = getattr(settings_obj, "openai_concurrency", 8)
+    try:
+        concurrency = int(raw_value)
+    except (TypeError, ValueError):
+        concurrency = 8
+    return max(concurrency, 1)
+
+
+async def _extract_values_for_keys(
     *,
     backend: MultimodalLLMBackend,
     pages: list[RenderedPage],
@@ -100,14 +123,28 @@ def _extract_values_for_keys(
         for start in range(0, len(pages), normalized_chunk):
             page_batches.append(pages[start : start + normalized_chunk])
 
+    semaphore = asyncio.Semaphore(_backend_concurrency(backend))
+
+    async def _extract_batch(batch: list[RenderedPage]) -> tuple[list[FieldValue], PricingCall | None]:
+        async with semaphore:
+            extract_async = getattr(backend, "aextract_values", None)
+            if extract_async is not None:
+                return await extract_async(
+                    batch,
+                    keys,
+                    extra_instructions=extra_instructions,
+                )
+            return backend.extract_values(
+                batch,
+                keys,
+                extra_instructions=extra_instructions,
+            )
+
+    batch_results = await asyncio.gather(*[_extract_batch(batch) for batch in page_batches])
+
     by_key: dict[str, FieldValue] = {}
     pricing_calls: list[PricingCall] = []
-    for batch in page_batches:
-        batch_values, call = backend.extract_values(
-            batch,
-            keys,
-            extra_instructions=extra_instructions,
-        )
+    for batch_values, call in batch_results:
         for value in batch_values:
             by_key[value.key] = _select_better_value(by_key.get(value.key), value)
         if call:
@@ -116,7 +153,7 @@ def _extract_values_for_keys(
     return list(by_key.values()), pricing_calls
 
 
-def _extract_values_for_page_groups(
+async def _extract_values_for_page_groups(
     *,
     backend: MultimodalLLMBackend,
     pages: list[RenderedPage],
@@ -135,24 +172,41 @@ def _extract_values_for_page_groups(
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
     """
     pages_by_number = {page.page_number: page for page in pages}
+    semaphore = asyncio.Semaphore(_backend_concurrency(backend))
+
+    async def _extract_one(page_number: int, keys: list[str]) -> tuple[list[FieldValue], PricingCall | None]:
+        page = pages_by_number.get(page_number)
+        if page is None:
+            return [], None
+        async with semaphore:
+            extract_async = getattr(backend, "aextract_values", None)
+            if extract_async is not None:
+                return await extract_async(
+                    [page],
+                    keys,
+                    extra_instructions=extra_instructions,
+                )
+            return backend.extract_values(
+                [page],
+                keys,
+                extra_instructions=extra_instructions,
+            )
+
+    tasks = []
+    for page_number, keys in sorted(keys_by_page.items()):
+        tasks.append(_extract_one(page_number, keys))
+    results = await asyncio.gather(*tasks)
+
     extracted_values: list[FieldValue] = []
     calls: list[PricingCall] = []
-    for page_number, keys in sorted(keys_by_page.items()):
-        page = pages_by_number.get(page_number)
-        if not page:
-            continue
-        page_values, call = backend.extract_values(
-            [page],
-            keys,
-            extra_instructions=extra_instructions,
-        )
+    for page_values, call in results:
         extracted_values.extend(page_values)
         if call:
             calls.append(call)
     return extracted_values, calls
 
 
-def _collect_schema_values(
+async def _collect_schema_values(
     *,
     schema: SchemaSpec,
     request: ExtractRequest,
@@ -175,7 +229,7 @@ def _collect_schema_values(
 
     if not keys_by_page:
         keys = [field.key for field in schema.fields]
-        return _extract_values_for_keys(
+        return await _extract_values_for_keys(
             backend=backend,
             pages=pages,
             keys=keys,
@@ -183,13 +237,13 @@ def _collect_schema_values(
             extra_instructions=request.extra_instructions,
         )
 
-    paged_values, paged_calls = _extract_values_for_page_groups(
+    paged_values, paged_calls = await _extract_values_for_page_groups(
         backend=backend,
         pages=pages,
         keys_by_page=keys_by_page,
         extra_instructions=request.extra_instructions,
     )
-    non_paged_values, non_paged_calls = _extract_values_for_keys(
+    non_paged_values, non_paged_calls = await _extract_values_for_keys(
         backend=backend,
         pages=pages,
         keys=non_paged_keys,
@@ -321,11 +375,13 @@ def extract_values(
     )
     backend = MultimodalLLMBackend(settings)
 
-    extracted_values, calls = _collect_schema_values(
-        schema=schema,
-        request=request,
-        backend=backend,
-        pages=pages,
+    extracted_values, calls = run_async(
+        _collect_schema_values(
+            schema=schema,
+            request=request,
+            backend=backend,
+            pages=pages,
+        ),
     )
 
     pricing = merge_pricing_calls(calls)

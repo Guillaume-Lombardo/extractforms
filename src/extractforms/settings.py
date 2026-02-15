@@ -99,6 +99,11 @@ class Settings(BaseSettings):
         validation_alias="OPENAI_MODEL",
         description="OpenAI model to use.",
     )
+    openai_concurrency: int = Field(
+        default=8,
+        validation_alias="OPENAI_CONCURRENCY",
+        description="Maximum number of concurrent OpenAI requests.",
+    )
 
     results_dir: str = Field(
         default="results",

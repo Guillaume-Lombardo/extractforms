@@ -32,7 +32,7 @@ class _FakeCompletion:
 
 
 class _FakeCompletions:
-    def create(self, **payload: object) -> _FakeCompletion:
+    async def create(self, **payload: object) -> _FakeCompletion:
         assert payload["model"] == "x"
         return _FakeCompletion()
 
@@ -69,11 +69,11 @@ def test_post_chat_completions_success(monkeypatch) -> None:
     )
     monkeypatch.setattr(
         Settings,
-        "select_sync_httpx_client",
+        "select_async_httpx_client",
         lambda _self, _target_url: _FakeClient(),
     )
 
-    monkeypatch.setattr(multimodal_openai, "OpenAI", _FakeOpenAI)
+    monkeypatch.setattr(multimodal_openai, "AsyncOpenAI", _FakeOpenAI)
 
     payload, pricing = backend._post_chat_completions({"model": "x"})
 
@@ -93,25 +93,27 @@ def test_infer_schema_and_extract_values_with_mocked_post(mocker) -> None:
 
     mocker.patch.object(
         backend,
-        "_post_chat_completions",
-        side_effect=[
-            (
-                {"choices": [{"message": {"content": '{"name":"demo","fields":[]}'}}]},
-                None,
-            ),
-            (
-                {
-                    "choices": [
-                        {
-                            "message": {
-                                "content": '{"fields":[{"key":"a","value":"v","page":1,"confidence":"high"}]}',
+        "_apost_chat_completions",
+        new=mocker.AsyncMock(
+            side_effect=[
+                (
+                    {"choices": [{"message": {"content": '{"name":"demo","fields":[]}'}}]},
+                    None,
+                ),
+                (
+                    {
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": '{"fields":[{"key":"a","value":"v","page":1,"confidence":"high"}]}',
+                                },
                             },
-                        },
-                    ],
-                },
-                None,
-            ),
-        ],
+                        ],
+                    },
+                    None,
+                ),
+            ],
+        ),
     )
 
     schema, _ = backend.infer_schema([page])
