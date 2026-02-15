@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 def test_settings_load_from_env_file(tmp_path: Path, monkeypatch) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "APP_ENV=test\nLOG_LEVEL=DEBUG\nLOG_JSON=false\nTIMEOUT=12\nMAX_CONNECTIONS=99\n",
+        "APP_ENV=test\nLOG_LEVEL=DEBUG\nLOG_JSON=false\nTIMEOUT=12\nMAX_CONNECTIONS=99\n",  # pragma: allowlist secret
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
