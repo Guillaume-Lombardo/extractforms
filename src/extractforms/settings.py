@@ -23,28 +23,87 @@ class Settings(BaseSettings):
     )
 
     project_name: str = "extractforms"
-    app_env: str = Field(default="dev", validation_alias="APP_ENV")
+    app_env: str = Field(
+        default="dev",
+        validation_alias="APP_ENV",
+        description="Application environment, e.g. 'dev', 'prod'.",
+    )
 
-    log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
-    log_json: bool = Field(default=True, validation_alias="LOG_JSON")
-    log_file: str | None = Field(default=None, validation_alias="LOG_FILE")
+    log_level: str = Field(
+        default="INFO",
+        validation_alias="LOG_LEVEL",
+        description="Logging level, e.g. 'INFO', 'DEBUG'.",
+    )
+    log_json: bool = Field(
+        default=True,
+        validation_alias="LOG_JSON",
+        description="Enable JSON formatted logs.",
+    )
+    log_file: str | None = Field(
+        default=None,
+        validation_alias="LOG_FILE",
+        description="File path for log output.",
+    )
+    http_proxy: str | None = Field(default=None, validation_alias="HTTP_PROXY", description="HTTP proxy URL.")
+    https_proxy: str | None = Field(
+        default=None,
+        validation_alias="HTTPS_PROXY",
+        description="HTTPS proxy URL.",
+    )
+    all_proxy: str | None = Field(default=None, validation_alias="ALL_PROXY", description="All proxy URL.")
+    no_proxy: str | None = Field(
+        default=None,
+        validation_alias="NO_PROXY",
+        description="Comma-separated list of hosts to bypass proxy.",
+    )
 
-    http_proxy: str | None = Field(default=None, validation_alias="HTTP_PROXY")
-    https_proxy: str | None = Field(default=None, validation_alias="HTTPS_PROXY")
-    all_proxy: str | None = Field(default=None, validation_alias="ALL_PROXY")
-    no_proxy: str | None = Field(default=None, validation_alias="NO_PROXY")
+    cert_path: str | None = Field(
+        default=None,
+        validation_alias="CERT_PATH",
+        description="Path to SSL certificate.",
+    )
+    timeout: float = Field(
+        default=30.0,
+        validation_alias="TIMEOUT",
+        description="Request timeout in seconds.",
+    )
+    max_connections: int = Field(
+        default=20,
+        validation_alias="MAX_CONNECTIONS",
+        description="Maximum number of concurrent connections.",
+    )
 
-    cert_path: str | None = Field(default=None, validation_alias="CERT_PATH")
-    timeout: float = Field(default=30.0, validation_alias="TIMEOUT")
-    max_connections: int = Field(default=20, validation_alias="MAX_CONNECTIONS")
+    openai_base_url: str | None = Field(
+        default=None,
+        validation_alias="OPENAI_BASE_URL",
+        description="Base URL for OpenAI API.",
+    )
+    openai_api_key: str | None = Field(
+        default=None,
+        validation_alias="OPENAI_API_KEY",
+        description="API key for OpenAI.",
+    )
+    openai_model: str = Field(
+        default="gpt-4o-mini",
+        validation_alias="OPENAI_MODEL",
+        description="OpenAI model to use.",
+    )
 
-    openai_base_url: str | None = Field(default=None, validation_alias="OPENAI_BASE_URL")
-    openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
-    openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
-
-    results_dir: str = Field(default="results", validation_alias="RESULTS_DIR")
-    schema_cache_dir: str = Field(default="results/schemas", validation_alias="SCHEMA_CACHE_DIR")
-    null_sentinel: str = Field(default="NULL", validation_alias="NULL_SENTINEL")
+    results_dir: str = Field(
+        default="results",
+        validation_alias="RESULTS_DIR",
+        description="Directory to store results.",
+    )
+    schema_cache_dir: str = Field(
+        default="results/schemas",
+        validation_alias="SCHEMA_CACHE_DIR",
+        description="Directory to cache schemas.",
+    )
+    null_sentinel: str = Field(
+        default="NULL",
+        validation_alias="NULL_SENTINEL",
+        description="Sentinel value for null fields.",
+    )
 
 
 def build_ssl_context(settings: Settings) -> ssl.SSLContext:
@@ -134,7 +193,6 @@ def build_httpx_client_kwargs(
     }
 
     if proxy_url and not _is_no_proxy_target(target_url, settings.no_proxy):
-        # `proxy` is accepted in modern httpx versions.
         kwargs["proxy"] = proxy_url
 
     return kwargs

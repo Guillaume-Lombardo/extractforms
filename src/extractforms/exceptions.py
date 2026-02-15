@@ -59,8 +59,25 @@ class ExtractionError(PackageError):
 class DependencyError(PackageError):
     """Raised when optional runtime dependencies are missing."""
 
+    missing_package: list[str]
     message: str
 
     def __str__(self) -> str:
         """Return error message payload."""
-        return self.message
+        return f"Missing runtime dependencies for '{self.message}': {', '.join(self.missing_package)}"
+
+
+@dataclass(frozen=True)
+class ModelMismatchError(PackageError):
+    """Raised when the model used for an operation does not match the model of another operation."""
+
+    provider1: str
+    model1: str
+    provider2: str
+    model2: str
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return (
+            f"Model mismatch: expected '{self.provider1}/{self.model1}', got '{self.provider2}/{self.model2}'"
+        )

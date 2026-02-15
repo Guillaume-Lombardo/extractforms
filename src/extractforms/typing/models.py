@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from extractforms.exceptions import ModelMismatchError
 from extractforms.typing.enums import ConfidenceLevel, FieldKind, PassMode
+
+_ = Path
 
 
 class SchemaField(BaseModel):
@@ -53,9 +56,36 @@ class PricingCall(BaseModel):
 
     provider: str
     model: str
-    input_tokens: int | None = None
-    output_tokens: int | None = None
-    total_cost_usd: float | None = None
+    input_tokens: int | None = Field(default=None)
+    output_tokens: int | None = Field(default=None)
+    total_cost_usd: float | None = Field(default=None)
+
+    def __add__(self, other: PricingCall) -> PricingCall:
+        """Combine two PricingCall instances by summing token counts and costs.
+
+        Args:
+            other: Another PricingCall instance to combine with.
+
+        Raises:
+            NotImplementedError: If the other object is not a PricingCall instance.
+            ModelMismatchError: If the provider or model of the two calls do not match.
+
+        Returns:
+            PricingCall: A new instance with combined values.
+        """
+        if not isinstance(other, PricingCall):
+            raise NotImplementedError("Cannot add PricingCall with non-PricingCall instance")
+
+        if self.provider != other.provider or self.model != other.model:
+            raise ModelMismatchError(self.provider, self.model, other.provider, other.model)
+
+        return PricingCall(
+            provider=self.provider,
+            model=self.model,
+            input_tokens=_sum_optional_int(self.input_tokens, other.input_tokens),
+            output_tokens=_sum_optional_int(self.output_tokens, other.output_tokens),
+            total_cost_usd=_sum_optional_float(self.total_cost_usd, other.total_cost_usd),
+        )
 
 
 class ExtractionResult(BaseModel):
@@ -119,3 +149,37 @@ class SanitizedJsonSchema(BaseModel):
     name: str
     json_schema: dict[str, Any] = Field(alias="schema")
     strict: bool = True
+
+
+def _sum_optional_int(value1: int | None, value2: int | None) -> int | None:
+    """Sum optional int values while preserving unknown state.
+
+    Args:
+        value1 (int|None): Optional int value.
+        value2 (int|None): Optional int value.
+
+    Returns:
+        int | None: Sum when at least one value is known, else None.
+    """
+    if value1 is None:
+        return value2
+    if value2 is None:
+        return value1
+    return value1 + value2
+
+
+def _sum_optional_float(value1: float | None, value2: float | None) -> float | None:
+    """Sum optional float values while preserving unknown state.
+
+    Args:
+        value1 (float|None): Optional float value.
+        value2 (float|None): Optional float value.
+
+    Returns:
+        float | None: Sum when at least one value is known, else None.
+    """
+    if value1 is None:
+        return value2
+    if value2 is None:
+        return value1
+    return value1 + value2
