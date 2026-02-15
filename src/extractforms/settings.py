@@ -131,9 +131,10 @@ def _normalize_no_proxy_entry(raw_entry: str) -> str:
         str: Normalized hostname pattern.
     """
     entry = raw_entry.lower()
-    if "://" in entry:
-        entry = (urlparse(entry).hostname or "").lower()
-    return entry.strip("[]").removeprefix(".")
+    # Prefix with // so urlparse can split host:port even without scheme.
+    hostname = urlparse(entry).hostname if "://" in entry else urlparse(f"//{entry}").hostname
+    normalized = (hostname or entry).lower()
+    return normalized.strip("[]").removeprefix(".")
 
 
 def _is_no_proxy_target(target_url: str | None, no_proxy: str | None) -> bool:
