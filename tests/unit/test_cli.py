@@ -22,8 +22,9 @@ def test_build_parser_supports_version_flag(capsys) -> None:
 
 
 def test_extract_request_uses_one_schema_mode_when_schema_is_provided() -> None:
+    input_pdf = Path(__file__)
     args = Namespace(
-        input_path=Path("input.pdf"),
+        input_path=input_pdf,
         output_path=Path("out.json"),
         mode=PassMode.TWO_PASS,
         no_cache=False,
@@ -45,11 +46,13 @@ def test_extract_request_uses_one_schema_mode_when_schema_is_provided() -> None:
 
 def test_main_runs_extract_flow(mocker, tmp_path: Path) -> None:
     output_path = tmp_path / "result.json"
+    input_pdf = tmp_path / "input.pdf"
+    input_pdf.write_bytes(b"pdf")
 
     parser = mocker.Mock()
     parser.parse_args.return_value = Namespace(
         command="extract",
-        input_path=Path("input.pdf"),
+        input_path=input_pdf,
         output_path=output_path,
         mode=PassMode.TWO_PASS,
         no_cache=False,

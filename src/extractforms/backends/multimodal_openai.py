@@ -5,15 +5,11 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, cast
 
-try:
-    import httpx
-except Exception:  # pragma: no cover - optional dependency at runtime
-    httpx: Any
-    httpx = None
-
+from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 from pydantic import BaseModel, ConfigDict
 
 from extractforms import logger
+from extractforms.async_runner import run_async
 from extractforms.exceptions import BackendError
 from extractforms.prompts import (
     build_schema_inference_prompt,
@@ -50,8 +46,11 @@ class MultimodalLLMBackend:
         """
         self._settings = settings
 
-    def _post_chat_completions(self, payload: dict[str, Any]) -> tuple[dict[str, Any], PricingCall | None]:
-        """Send one completion request.
+    async def _apost_chat_completions(
+        self,
+        payload: dict[str, Any],
+    ) -> tuple[dict[str, Any], PricingCall | None]:
+        """Send one async completion request.
 
         Args:
             payload (dict[str, Any]): Request payload.
@@ -67,32 +66,32 @@ class MultimodalLLMBackend:
         if not self._settings.openai_api_key:
             raise BackendError(message="OPENAI_API_KEY is required for multimodal backend")
 
-        if httpx is None:
-            raise BackendError(message="httpx is required for multimodal backend")
-
-        client = self._settings.select_sync_httpx_client(self._settings.openai_base_url)
+        client = self._settings.select_async_httpx_client(self._settings.openai_base_url)
         if client is None:
             raise BackendError(message="httpx clients are not initialized in settings")
         http_client = cast("Any", client)
-
-        url = f"{self._settings.openai_base_url.rstrip('/')}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self._settings.openai_api_key}",
-            "Content-Type": "application/json",
-        }
+        openai_client = AsyncOpenAI(
+            api_key=self._settings.openai_api_key,
+            base_url=self._settings.openai_base_url,
+            http_client=http_client,
+        )
 
         try:
-            response = http_client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-        except httpx.HTTPStatusError as exc:
+            completion = await openai_client.chat.completions.create(**payload)
+            data = completion.model_dump(mode="json")
+        except APIStatusError as exc:
+            status_code = getattr(exc, "status_code", None)
             raise BackendError(
-                message=f"Chat completion request failed with status {exc.response.status_code}",
+                message=f"Chat completion request failed with status {status_code}",
             ) from exc
-        except httpx.TimeoutException as exc:
+        except APITimeoutError as exc:
             raise BackendError(message="Chat completion request timed out") from exc
-        except httpx.RequestError as exc:
+        except APIConnectionError as exc:
             raise BackendError(message=f"Chat completion request failed: {exc}") from exc
+        except Exception as exc:
+            raise BackendError(
+                message=f"Chat completion request failed: {exc}",
+            ) from exc
 
         usage = data.get("usage", {})
         pricing = PricingCall(
@@ -104,6 +103,17 @@ class MultimodalLLMBackend:
         )
 
         return data, pricing
+
+    def _post_chat_completions(self, payload: dict[str, Any]) -> tuple[dict[str, Any], PricingCall | None]:
+        """Send one completion request from sync call sites.
+
+        Args:
+            payload (dict[str, Any]): Request payload.
+
+        Returns:
+            tuple[dict[str, Any], PricingCall | None]: Parsed payload and optional pricing call.
+        """
+        return run_async(self._apost_chat_completions(payload))
 
     @staticmethod
     def _image_content(page: RenderedPage) -> dict[str, Any]:
@@ -120,7 +130,7 @@ class MultimodalLLMBackend:
             "image_url": {"url": f"data:{page.mime_type};base64,{page.data_base64}"},
         }
 
-    def infer_schema(self, pages: list[RenderedPage]) -> tuple[SchemaSpec, PricingCall | None]:
+    async def ainfer_schema(self, pages: list[RenderedPage]) -> tuple[SchemaSpec, PricingCall | None]:
         """Infer schema from rendered pages.
 
         Args:
@@ -150,7 +160,7 @@ class MultimodalLLMBackend:
             },
         }
 
-        data, pricing = self._post_chat_completions(payload)
+        data, pricing = await self._apost_chat_completions(payload)
         content_text = data["choices"][0]["message"]["content"]
         parsed = _SchemaResponse.model_validate(json.loads(content_text))
 
@@ -163,7 +173,18 @@ class MultimodalLLMBackend:
         logger.info("Schema inferred", extra={"fields": len(schema.fields)})
         return schema, pricing
 
-    def extract_values(
+    def infer_schema(self, pages: list[RenderedPage]) -> tuple[SchemaSpec, PricingCall | None]:
+        """Infer schema from rendered pages (sync wrapper).
+
+        Args:
+            pages (list[RenderedPage]): Rendered pages.
+
+        Returns:
+            tuple[SchemaSpec, PricingCall | None]: Inferred schema and call pricing.
+        """
+        return run_async(self.ainfer_schema(pages))
+
+    async def aextract_values(
         self,
         pages: list[RenderedPage],
         keys: list[str],
@@ -207,8 +228,27 @@ class MultimodalLLMBackend:
             },
         }
 
-        data, pricing = self._post_chat_completions(payload)
+        data, pricing = await self._apost_chat_completions(payload)
         content_text = data["choices"][0]["message"]["content"]
         parsed = _ValuesResponse.model_validate(json.loads(content_text))
         logger.info("Values extracted", extra={"fields": len(parsed.fields)})
         return parsed.fields, pricing
+
+    def extract_values(
+        self,
+        pages: list[RenderedPage],
+        keys: list[str],
+        *,
+        extra_instructions: str | None = None,
+    ) -> tuple[list[FieldValue], PricingCall | None]:
+        """Extract values for specific keys (sync wrapper).
+
+        Args:
+            pages (list[RenderedPage]): Rendered pages.
+            keys (list[str]): Keys to extract.
+            extra_instructions (str | None): Optional prompt augmentation.
+
+        Returns:
+            tuple[list[FieldValue], PricingCall | None]: Extracted values and pricing.
+        """
+        return run_async(self.aextract_values(pages, keys, extra_instructions=extra_instructions))
