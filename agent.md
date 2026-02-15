@@ -26,6 +26,7 @@ Deliver high-quality, maintainable increments for a Python package and its CLI/A
 - For each PR, monitor CI and Copilot review by polling every 60 seconds until results are available.
 - Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
 - Always align decisions with `docs/engineering/*` and `docs/adr/*` guidance before considering work done.
+- Never modify `ruff.toml` unless explicitly requested by the user.
 
 ## Extraction Strategy Guardrails
 

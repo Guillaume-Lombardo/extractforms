@@ -88,6 +88,7 @@ This template includes AI delivery tooling:
   - `docs/engineering/DEFINITION_OF_DONE.md`
   - `docs/engineering/REVIEW_RUNBOOK.md`
   - `docs/adr/README.md`
+- Do not modify `ruff.toml` unless the user explicitly requests it.
 
 ## Pre-PR Checklist
 
