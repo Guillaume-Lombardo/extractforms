@@ -91,6 +91,9 @@ This template includes AI delivery tooling:
   - `docs/engineering/DEFINITION_OF_DONE.md`
   - `docs/engineering/REVIEW_RUNBOOK.md`
   - `docs/adr/README.md`
+- Document architecture decisions in `docs/adr/` whenever a change introduces or modifies a structural/architectural choice.
+- Keep unit tests mirrored to package layout under `tests/unit/...` without reintroducing an extra `extractforms` path segment.
+- Example: `src/extractforms/backends/multimodal_openai.py` maps to `tests/unit/backends/test_multimodal_openai.py`.
 - Do not modify `ruff.toml` unless the user explicitly requests it.
 
 ## Pre-PR Checklist
@@ -105,10 +108,13 @@ Run locally:
 - `uv run pytest -m end2end`
 - `uv run pre-commit run --all-files`
 - Run a dead-code cleanup pass (remove unused code, stale helpers, and obsolete branches).
+- Verify Google-style docstrings include explicit types in `Args` and `Returns` for modified code paths.
+- Verify `tests/unit` structure still mirrors `src/extractforms` after refactors/moves.
 - Confirm documentation/config sync:
   - `README.md` updated if behavior changed
   - `.env.template` updated if env contract changed
   - local `.env` updated for manual/e2e validation
+  - `docs/adr/*` updated when architecture decisions changed
 
 ## Skills
 

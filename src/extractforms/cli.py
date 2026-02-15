@@ -19,7 +19,7 @@ def _pass_mode_from_cli(value: str) -> PassMode:
     """Convert `--passes` CLI value into pass mode.
 
     Args:
-        value: CLI value (`1` or `2`).
+        value (str): CLI value (`1` or `2`).
 
     Raises:
         argparse.ArgumentTypeError: If value is not supported.
@@ -78,7 +78,7 @@ def _build_extract_request(args: argparse.Namespace) -> ExtractRequest:
     """Build extraction request from CLI arguments.
 
     Args:
-        args: Parsed CLI args.
+        args (argparse.Namespace): Parsed CLI args.
 
     Returns:
         ExtractRequest: Request object.

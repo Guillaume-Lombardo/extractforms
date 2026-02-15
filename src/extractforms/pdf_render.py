@@ -38,12 +38,12 @@ def render_pdf_pages(  # noqa: PLR0913
     """Render a PDF file into base64 image pages.
 
     Args:
-        pdf_path: PDF file to render.
-        dpi: Render DPI.
-        image_format: Target format (`png`, `jpeg`, `jpg`).
-        page_start: Optional first page (1-based, inclusive).
-        page_end: Optional last page (1-based, inclusive).
-        max_pages: Optional hard limit on rendered pages.
+        pdf_path (Path): PDF file to render.
+        dpi (int): Render DPI.
+        image_format (str): Target format (`png`, `jpeg`, `jpg`).
+        page_start (int | None): Optional first page (1-based, inclusive).
+        page_end (int | None): Optional last page (1-based, inclusive).
+        max_pages (int | None): Optional hard limit on rendered pages.
 
     Raises:
         BackendError: If PyMuPDF is unavailable or rendering fails.

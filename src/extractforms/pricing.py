@@ -12,7 +12,7 @@ def merge_pricing_calls(calls: list[PricingCall]) -> PricingCall | None:
     """Aggregate pricing calls into a single summary.
 
     Args:
-        calls: List of calls.
+        calls (list[PricingCall]): List of calls.
 
     Returns:
         PricingCall | None: Aggregated call or None if empty.

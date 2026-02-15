@@ -12,7 +12,7 @@ def sanitize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     """Sanitize a JSON schema to maximize strict compatibility.
 
     Args:
-        schema: Raw JSON schema.
+        schema (dict[str, Any]): Raw JSON schema.
 
     Returns:
         dict[str, Any]: Sanitized JSON schema.
@@ -45,8 +45,8 @@ def schema_response_format(name: str, schema: dict[str, Any]) -> SanitizedJsonSc
     """Build strict response format payload.
 
     Args:
-        name: Schema name in response format.
-        schema: Raw schema payload.
+        name (str): Schema name in response format.
+        schema (dict[str, Any]): Raw schema payload.
 
     Returns:
         SanitizedJsonSchema: Strict response schema wrapper.
@@ -62,7 +62,7 @@ def build_schema_inference_prompt(*, extra_instructions: str | None = None) -> s
     """Build prompt used to infer a document schema.
 
     Args:
-        extra_instructions: Optional user instructions.
+        extra_instructions (str | None): Optional user instructions.
 
     Returns:
         str: Prompt text.
@@ -79,8 +79,8 @@ def build_values_extraction_prompt(schema: SchemaSpec, *, extra_instructions: st
     """Build prompt used to extract values with a known schema.
 
     Args:
-        schema: Input schema.
-        extra_instructions: Optional user instructions.
+        schema (SchemaSpec): Input schema.
+        extra_instructions (str | None): Optional user instructions.
 
     Returns:
         str: Prompt text.

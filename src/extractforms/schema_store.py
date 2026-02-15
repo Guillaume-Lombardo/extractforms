@@ -27,7 +27,7 @@ class SchemaStore(BaseModel):
         """Ensure the cache directory exists after model initialization.
 
         Args:
-            __context: Pydantic model context.
+            __context (object): Pydantic model context.
         """
         self.root.mkdir(parents=True, exist_ok=True)
 
@@ -36,7 +36,7 @@ class SchemaStore(BaseModel):
         """Compute stable PDF fingerprint.
 
         Args:
-            pdf_path: Input PDF path.
+            pdf_path (Path): Input PDF path.
 
         Returns:
             str: SHA-256 hex digest.
@@ -51,9 +51,9 @@ class SchemaStore(BaseModel):
         """Build schema cache path.
 
         Args:
-            schema_name: Schema name.
-            schema_id: Schema identifier.
-            fingerprint: PDF fingerprint.
+            schema_name (str): Schema name.
+            schema_id (str): Schema identifier.
+            fingerprint (str): PDF fingerprint.
 
         Returns:
             Path: Cache path.
@@ -68,7 +68,7 @@ class SchemaStore(BaseModel):
         """Load schema from path.
 
         Args:
-            path: Schema file path.
+            path (Path): Schema file path.
 
         Returns:
             SchemaSpec: Loaded schema.
@@ -80,7 +80,7 @@ class SchemaStore(BaseModel):
         """Persist schema to store.
 
         Args:
-            schema: Schema payload.
+            schema (SchemaSpec): Schema payload.
 
         Returns:
             Path: Written file path.
@@ -106,7 +106,7 @@ class SchemaStore(BaseModel):
         """Try finding an existing schema by fingerprint.
 
         Args:
-            fingerprint: PDF fingerprint.
+            fingerprint (str): PDF fingerprint.
 
         Returns:
             MatchResult: Match details.
@@ -128,9 +128,9 @@ def build_schema_with_generated_id(name: str, fingerprint: str, fields: list[Sch
     """Create schema with generated UUID id.
 
     Args:
-        name: Schema name.
-        fingerprint: Source document fingerprint.
-        fields: Schema fields.
+        name (str): Schema name.
+        fingerprint (str): Source document fingerprint.
+        fields (list[SchemaField]): Schema fields.
 
     Returns:
         SchemaSpec: Generated schema.

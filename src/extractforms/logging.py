@@ -24,9 +24,9 @@ def _rename_event_key(
     """Normalize structlog payload keys.
 
     Args:
-        logger: The logger instance (unused).
-        method_name: The logging method name (unused).
-        event_dict: The original event dictionary.
+        logger (logging.Logger): The logger instance (unused).
+        method_name (str): The logging method name (unused).
+        event_dict (EventDict): The original event dictionary.
 
     Returns:
         EventDict: Modified event dictionary with "message" key instead of "event".
@@ -40,8 +40,8 @@ def configure_logging(*, settings: Settings | None = None, force: bool = False) 
     """Configure structlog and stdlib logging once for the package.
 
     Args:
-        settings: Optional runtime settings.
-        force: Reconfigure logging even if already configured.
+        settings (Settings | None): Optional runtime settings.
+        force (bool): Reconfigure logging even if already configured.
     """
     global _LOGGING_CONFIGURED  # noqa: PLW0603
 
@@ -86,7 +86,7 @@ def get_logger(name: str = "extractforms") -> structlog.BoundLogger:
     """Return package logger, configuring logging lazily.
 
     Args:
-        name: Logger name.
+        name (str): Logger name.
 
     Returns:
         structlog.BoundLogger: Configured logger.
