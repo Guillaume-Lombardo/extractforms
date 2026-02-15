@@ -248,3 +248,77 @@ def test_run_extract_with_schema_path(monkeypatch, tmp_path: Path) -> None:
 
     result = run_extract(request, Settings(schema_cache_dir=str(tmp_path)))
     assert result.flat["a"] == "v"
+
+
+def test_extract_values_handles_mixed_paged_and_non_paged_keys(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[
+            SchemaField(key="paged_key", label="Paged", page=1),
+            SchemaField(key="free_key", label="Free", page=None),
+        ],
+    )
+
+    class _FakeBackend:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            if keys == ["paged_key"]:
+                return [
+                    FieldValue(key="paged_key", value="paged", page=1, confidence=ConfidenceLevel.HIGH),
+                ], None
+            return [FieldValue(key="free_key", value="free", page=2, confidence=ConfidenceLevel.MEDIUM)], None
+
+    page1 = type("Page", (), {"page_number": 1})()
+    page2 = type("Page", (), {"page_number": 2})()
+    monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1, page2])
+    monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
+
+    request = _request(pdf, PassMode.TWO_PASS)
+    request.chunk_pages = 2
+    result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
+
+    assert result.flat["paged_key"] == "paged"
+    assert result.flat["free_key"] == "free"
+
+
+def test_extract_values_uses_chunk_pages_for_non_paged_keys(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[SchemaField(key="a", label="A"), SchemaField(key="b", label="B")],
+    )
+
+    calls: list[int] = []
+
+    class _FakeBackend:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            calls.append(len(pages))
+            return [
+                FieldValue(key="a", value="value-a", page=1, confidence=ConfidenceLevel.MEDIUM),
+                FieldValue(key="b", value="", page=1, confidence=ConfidenceLevel.UNKNOWN),
+            ], None
+
+    pages = [type("Page", (), {"page_number": idx})() for idx in [1, 2, 3]]
+    monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: pages)
+    monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
+
+    request = _request(pdf, PassMode.TWO_PASS)
+    request.chunk_pages = 2
+    result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
+
+    assert calls == [2, 1]
+    assert result.flat["a"] == "value-a"

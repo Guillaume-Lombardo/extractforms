@@ -29,6 +29,95 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _confidence_rank(confidence: ConfidenceLevel) -> int:
+    """Return a comparable rank for confidence values.
+
+    Args:
+        confidence: Confidence label.
+
+    Returns:
+        int: Comparable rank where higher is more confident.
+    """
+    rank = {
+        ConfidenceLevel.UNKNOWN: 0,
+        ConfidenceLevel.LOW: 1,
+        ConfidenceLevel.MEDIUM: 2,
+        ConfidenceLevel.HIGH: 3,
+    }
+    return rank[confidence]
+
+
+def _select_better_value(current: FieldValue | None, candidate: FieldValue) -> FieldValue:
+    """Select the better field value between current and candidate.
+
+    Args:
+        current: Currently selected value for the key.
+        candidate: New candidate value.
+
+    Returns:
+        FieldValue: Selected value.
+    """
+    if current is None:
+        return candidate
+
+    current_blank = not current.value.strip()
+    candidate_blank = not candidate.value.strip()
+    if current_blank and not candidate_blank:
+        return candidate
+    if not current_blank and candidate_blank:
+        return current
+    if _confidence_rank(candidate.confidence) > _confidence_rank(current.confidence):
+        return candidate
+    return current
+
+
+def _extract_values_for_keys(
+    *,
+    backend: MultimodalLLMBackend,
+    pages: list,
+    keys: list[str],
+    chunk_pages: int,
+    extra_instructions: str | None,
+) -> tuple[list[FieldValue], list[PricingCall]]:
+    """Extract values for a key set with optional page chunking.
+
+    Args:
+        backend: Extraction backend.
+        pages: Rendered pages.
+        keys: Keys to extract.
+        chunk_pages: Requested chunk size.
+        extra_instructions: Additional prompt instructions.
+
+    Returns:
+        tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
+    """
+    if not keys:
+        return [], []
+
+    normalized_chunk = max(chunk_pages, 1)
+    page_batches: list[list] = []
+    if normalized_chunk == 1 or normalized_chunk >= len(pages):
+        page_batches = [pages]
+    else:
+        for start in range(0, len(pages), normalized_chunk):
+            page_batches.append(pages[start : start + normalized_chunk])
+
+    by_key: dict[str, FieldValue] = {}
+    pricing_calls: list[PricingCall] = []
+    for batch in page_batches:
+        batch_values, call = backend.extract_values(
+            batch,
+            keys,
+            extra_instructions=extra_instructions,
+        )
+        for value in batch_values:
+            by_key[value.key] = _select_better_value(by_key.get(value.key), value)
+        if call:
+            pricing_calls.append(call)
+
+    return list(by_key.values()), pricing_calls
+
+
 def _build_result(
     *,
     schema: SchemaSpec,
@@ -126,7 +215,7 @@ def _group_keys_by_page(schema: SchemaSpec) -> dict[int, list[str]]:
     return keys_by_page
 
 
-def extract_values(
+def extract_values(  # noqa: PLR0914
     schema: SchemaSpec,
     request: ExtractRequest,
     settings: Settings,
@@ -155,6 +244,7 @@ def extract_values(
     extracted_values: list[FieldValue] = []
 
     keys_by_page = _group_keys_by_page(schema)
+    non_paged_keys = [field.key for field in schema.fields if field.page is None]
 
     if keys_by_page:
         pages_by_number = {page.page_number: page for page in pages}
@@ -170,15 +260,25 @@ def extract_values(
             extracted_values.extend(page_values)
             if call:
                 calls.append(call)
-    else:
-        keys = [field.key for field in schema.fields]
-        extracted_values, call = backend.extract_values(
-            pages,
-            keys,
+        non_paged_values, non_paged_calls = _extract_values_for_keys(
+            backend=backend,
+            pages=pages,
+            keys=non_paged_keys,
+            chunk_pages=request.chunk_pages,
             extra_instructions=request.extra_instructions,
         )
-        if call:
-            calls.append(call)
+        extracted_values.extend(non_paged_values)
+        calls.extend(non_paged_calls)
+    else:
+        keys = [field.key for field in schema.fields]
+        extracted_values, chunk_calls = _extract_values_for_keys(
+            backend=backend,
+            pages=pages,
+            keys=keys,
+            chunk_pages=request.chunk_pages,
+            extra_instructions=request.extra_instructions,
+        )
+        calls.extend(chunk_calls)
 
     pricing = merge_pricing_calls(calls)
     result = _build_result(

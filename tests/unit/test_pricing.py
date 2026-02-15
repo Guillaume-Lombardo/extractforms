@@ -22,3 +22,17 @@ def test_merge_pricing_calls_aggregates_values() -> None:
     assert merged.input_tokens == 13
     assert merged.output_tokens == 7
     assert merged.total_cost_usd == pytest.approx(0.15)
+
+
+def test_merge_pricing_calls_preserves_none_when_unknown() -> None:
+    calls = [
+        PricingCall(provider="x", model="m", input_tokens=None, output_tokens=None, total_cost_usd=None),
+        PricingCall(provider="x", model="m", input_tokens=None, output_tokens=None, total_cost_usd=None),
+    ]
+
+    merged = merge_pricing_calls(calls)
+
+    assert merged is not None
+    assert merged.input_tokens is None
+    assert merged.output_tokens is None
+    assert merged.total_cost_usd is None

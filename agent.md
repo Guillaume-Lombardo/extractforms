@@ -54,4 +54,5 @@ A feature is done only if:
 
 - Do not introduce unrelated features in the same change.
 - Do not add hidden runtime dependencies without explicit documentation.
-- Do not hardwire one extraction backend into the domain layer.
+- Long-term, avoid hardwiring one extraction backend into the domain layer.
+- Current MVP intentionally wires `MultimodalLLMBackend` in the orchestrator and should migrate to protocol/factory-based backend selection as OCR support matures.
