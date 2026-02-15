@@ -398,3 +398,40 @@ def test_extract_values_retries_missing_paged_keys_on_all_pages(monkeypatch, tmp
 
     assert result.flat["a"] == "found"
     assert calls == [(1, ("a",)), (2, ("a",))]
+
+
+def test_extract_values_retries_when_paged_value_is_null_sentinel(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[SchemaField(key="a", label="A", page=2)],
+    )
+
+    calls: list[tuple[int, tuple[str, ...]]] = []
+
+    class _FakeBackend:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            _ = extra_instructions
+            calls.append((len(pages), tuple(keys)))
+            if len(pages) == 1:
+                return [FieldValue(key="a", value="NULL", page=2, confidence=ConfidenceLevel.UNKNOWN)], None
+            return [FieldValue(key="a", value="found", page=1, confidence=ConfidenceLevel.HIGH)], None
+
+    page1 = type("Page", (), {"page_number": 1})()
+    page2 = type("Page", (), {"page_number": 2})()
+    monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1, page2])
+    monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
+
+    request = _request(pdf, PassMode.TWO_PASS)
+    request.chunk_pages = 2
+    result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
+
+    assert result.flat["a"] == "found"
+    assert calls == [(1, ("a",)), (2, ("a",))]

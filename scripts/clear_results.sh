@@ -1,4 +1,4 @@
-#! /bin/zsh
+#!/bin/zsh
 
 rm -rf results/extract/*(N)
 rm -rf results/schemas/*(N)

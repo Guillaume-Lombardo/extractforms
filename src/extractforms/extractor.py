@@ -104,6 +104,25 @@ def _non_blank_keys(values: list[FieldValue]) -> set[str]:
     return {value.key for value in values if value.value.strip()}
 
 
+def _backend_null_sentinel(backend: MultimodalLLMBackend) -> str:
+    """Resolve backend null sentinel with a safe fallback.
+
+    Args:
+        backend (MultimodalLLMBackend): Backend instance.
+
+    Returns:
+        str: Null sentinel.
+    """
+    settings_obj = getattr(backend, "settings", None)
+    if settings_obj is None:
+        settings_obj = getattr(backend, "_settings", None)
+
+    sentinel = getattr(settings_obj, "null_sentinel", None)
+    if isinstance(sentinel, str) and sentinel:
+        return sentinel
+    return "NULL"
+
+
 async def _extract_values_for_keys(
     *,
     backend: MultimodalLLMBackend,
@@ -266,7 +285,12 @@ async def _collect_schema_values(
     )
 
     extracted_values = paged_values + non_paged_values
-    extracted_non_blank = _non_blank_keys(extracted_values)
+    null_sentinel = _backend_null_sentinel(backend)
+    extracted_non_blank = {
+        value.key
+        for value in extracted_values
+        if value.value.strip() and value.value.strip() not in {null_sentinel, "NULL"}
+    }
     paged_keys = {field.key for field in schema.fields if field.page is not None}
     missing_paged_keys = sorted(paged_keys - extracted_non_blank)
 

@@ -81,6 +81,26 @@ def test_get_settings_retries_after_env_template_on_missing(monkeypatch) -> None
     get_settings.cache_clear()
 
 
+def test_get_settings_wraps_env_copy_error_on_missing(monkeypatch) -> None:
+    get_settings.cache_clear()
+
+    def _fake_settings():
+        raise ValueError("missing")
+
+    def _raise_io_error(**kwargs: object) -> None:
+        _ = kwargs
+        raise OSError("cannot write .env")
+
+    monkeypatch.setattr("extractforms.settings.Settings", _fake_settings)
+    monkeypatch.setattr("extractforms.settings._is_missing_settings_error", lambda exc: True)
+    monkeypatch.setattr("extractforms.settings.ensure_env_file_exists", _raise_io_error)
+
+    with pytest.raises(SettingsError):
+        get_settings()
+
+    get_settings.cache_clear()
+
+
 def test_get_settings_does_not_copy_env_on_non_missing(monkeypatch) -> None:
     get_settings.cache_clear()
 

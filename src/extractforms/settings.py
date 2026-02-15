@@ -480,8 +480,8 @@ def get_settings() -> Settings:
         return Settings()
     except Exception as exc:
         if _is_missing_settings_error(exc):
-            ensure_env_file_exists()
             try:
+                ensure_env_file_exists()
                 return Settings()
             except Exception as retry_exc:
                 raise SettingsError(exc=retry_exc) from retry_exc

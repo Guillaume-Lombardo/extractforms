@@ -1,4 +1,4 @@
-#! /bin/zsh
+#!/bin/zsh
 : "${file1:=data/raw/form1.pdf}"
 : "${outfile11:=results/extract/form1-1pass.json}"
 : "${outfile12:=results/extract/form1-2pass.json}"
