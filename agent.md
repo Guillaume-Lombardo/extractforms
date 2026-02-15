@@ -23,7 +23,10 @@ Deliver high-quality, maintainable increments for a Python package and its CLI/A
 - Prefer small, testable increments aligned with `plan.md` phases.
 - Keep docs, skills, and plan synchronized with implementation.
 - Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
-- For each PR, monitor CI and Copilot review by polling every 60 seconds until results are available.
+- For each PR, monitor CI and Copilot review by polling every 60 seconds until:
+  - CI is finished (not pending), and
+  - Copilot review has been posted (or is explicitly absent for this PR).
+- Do not stop at CI success when Copilot review is still pending.
 - Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
 - Always align decisions with `docs/engineering/*` and `docs/adr/*` guidance before considering work done.
 - Never modify `ruff.toml` unless explicitly requested by the user.
