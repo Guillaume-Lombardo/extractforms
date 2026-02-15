@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from extractforms.exceptions import BackendError
 from extractforms.pdf_render import render_pdf_pages
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class _FakePixmap:
@@ -27,7 +30,7 @@ class _FakeDoc:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001, ANN201
+    def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
     def __len__(self) -> int:

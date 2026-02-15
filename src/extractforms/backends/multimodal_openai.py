@@ -125,6 +125,9 @@ class MultimodalLLMBackend:
         Args:
             pages: Rendered pages.
 
+        Raises:
+            BackendError: If page list is empty.
+
         Returns:
             tuple[SchemaSpec, PricingCall | None]: Inferred schema and call pricing.
         """
@@ -172,6 +175,9 @@ class MultimodalLLMBackend:
             pages: Rendered pages.
             keys: Keys to extract.
             extra_instructions: Optional prompt augmentation.
+
+        Raises:
+            BackendError: If page list is empty.
 
         Returns:
             tuple[list[FieldValue], PricingCall | None]: Extracted values and pricing.

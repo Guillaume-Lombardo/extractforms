@@ -34,7 +34,7 @@ def _pass_mode_from_cli(value: str) -> PassMode:
         "2": PassMode.TWO_PASS,
     }
     if value not in mapping:
-        raise argparse.ArgumentTypeError("--passes must be one of: 1, 2")
+        raise argparse.ArgumentTypeError("--passes must be one of: 1, 2")  # noqa: TRY003
     return mapping[value]
 
 

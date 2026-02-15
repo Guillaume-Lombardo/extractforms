@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 from extractforms.schema_store import SchemaStore, build_schema_with_generated_id
 
 
-def test_fingerprint_pdf_is_stable(tmp_path: Path) -> None:
+def test_fingerprint_pdf_is_stable(tmp_path) -> None:
     pdf = tmp_path / "a.pdf"
     pdf.write_bytes(b"test-content")
 
@@ -16,7 +14,7 @@ def test_fingerprint_pdf_is_stable(tmp_path: Path) -> None:
     assert fp1 == fp2
 
 
-def test_save_load_and_match_schema(tmp_path: Path) -> None:
+def test_save_load_and_match_schema(tmp_path) -> None:
     store = SchemaStore(root=tmp_path)
     schema = SchemaSpec(
         id="schema-1",

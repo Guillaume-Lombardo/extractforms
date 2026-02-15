@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from extractforms.typing.models import FieldValue, RenderedPage, SchemaSpec
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from extractforms.typing.models import FieldValue, RenderedPage, SchemaSpec
 
 
 class PageSource(Protocol):

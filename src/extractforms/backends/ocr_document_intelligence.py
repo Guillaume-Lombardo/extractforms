@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from extractforms.exceptions import BackendError
-from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaSpec
+
+if TYPE_CHECKING:
+    from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaSpec
 
 
 class OCRBackend:
     """Placeholder OCR backend."""
 
-    def infer_schema(self, pages: list[RenderedPage]) -> tuple[SchemaSpec, PricingCall | None]:
+    @staticmethod
+    def infer_schema(
+        pages: list[RenderedPage],
+    ) -> tuple[SchemaSpec, PricingCall | None]:
         """Infer schema with OCR backend.
 
         Args:
@@ -18,13 +25,12 @@ class OCRBackend:
         Raises:
             BackendError: Always in MVP stub.
 
-        Returns:
-            tuple[SchemaSpec, PricingCall | None]: Never returned in MVP.
         """
+        _ = pages
         raise BackendError(message="OCR backend is not implemented yet")
 
+    @staticmethod
     def extract_values(
-        self,
         pages: list[RenderedPage],
         keys: list[str],
     ) -> tuple[list[FieldValue], PricingCall | None]:
@@ -37,7 +43,6 @@ class OCRBackend:
         Raises:
             BackendError: Always in MVP stub.
 
-        Returns:
-            tuple[list[FieldValue], PricingCall | None]: Never returned in MVP.
         """
+        _ = (pages, keys)
         raise BackendError(message="OCR backend is not implemented yet")

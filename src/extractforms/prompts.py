@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, cast
 
 from extractforms.typing.models import SanitizedJsonSchema, SchemaSpec
 
@@ -19,17 +19,19 @@ def sanitize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:
     """
     cleaned = deepcopy(schema)
 
-    def _walk(node: Any) -> None:
+    def _walk(node: object) -> None:
         if isinstance(node, dict):
-            if "properties" in node:
-                node.setdefault("type", "object")
-                props = node["properties"]
+            node_dict = cast("dict[str, Any]", node)
+            if "properties" in node_dict:
+                node_dict.setdefault("type", "object")
+                props = node_dict["properties"]
                 if isinstance(props, dict):
-                    node["required"] = sorted(props.keys())
-                    node["additionalProperties"] = False
-            if "$ref" in node and "default" in node:
-                node.pop("default", None)
-            for value in node.values():
+                    props_dict = cast("dict[str, Any]", props)
+                    node_dict["required"] = sorted(str(key) for key in props_dict)
+                    node_dict["additionalProperties"] = False
+            if "$ref" in node_dict and "default" in node_dict:
+                node_dict.pop("default", None)
+            for value in node_dict.values():
                 _walk(value)
         elif isinstance(node, list):
             for item in node:

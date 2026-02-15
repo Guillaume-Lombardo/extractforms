@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import base64
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     import fitz
@@ -16,6 +15,9 @@ from extractforms.exceptions import BackendError
 from extractforms.logging import get_logger
 from extractforms.typing.models import RenderedPage
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 logger = get_logger(__name__)
 
 _MIME_BY_FORMAT = {
@@ -25,7 +27,7 @@ _MIME_BY_FORMAT = {
 }
 
 
-def render_pdf_pages(
+def render_pdf_pages(  # noqa: PLR0913
     pdf_path: Path,
     *,
     dpi: int,
@@ -81,6 +83,7 @@ def render_pdf_pages(
                     break
 
         logger.info("PDF rendered", extra={"pages": len(rendered), "input_path": str(pdf_path)})
-        return rendered
     except Exception as exc:  # pragma: no cover - depends on file and fitz internals
         raise BackendError(message=f"Failed to render PDF: {pdf_path}") from exc
+    else:
+        return rendered

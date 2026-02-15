@@ -10,5 +10,5 @@ def test_confidence_level_from_str() -> None:
 
 
 def test_confidence_level_from_str_raises_on_invalid_value() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unsupported ConfidenceLevel value"):
         ConfidenceLevel.from_str("very-high")

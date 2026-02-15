@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
@@ -12,7 +13,6 @@ from extractforms.logging import get_logger
 from extractforms.pdf_render import render_pdf_pages
 from extractforms.pricing import merge_pricing_calls
 from extractforms.schema_store import SchemaStore
-from extractforms.settings import Settings
 from extractforms.typing.enums import ConfidenceLevel, PassMode
 from extractforms.typing.models import (
     ExtractionResult,
@@ -22,6 +22,9 @@ from extractforms.typing.models import (
     PricingCall,
     SchemaSpec,
 )
+
+if TYPE_CHECKING:
+    from extractforms.settings import Settings
 
 logger = get_logger(__name__)
 
@@ -261,7 +264,7 @@ def persist_result(result: ExtractionResult, path: Path) -> None:
     path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
 
-def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult:
+def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult:  # noqa: C901
     """Top-level extraction flow used by CLI.
 
     Args:

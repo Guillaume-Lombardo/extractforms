@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
+import pytest
+from extractforms.exceptions import ExtractionError
 from extractforms.typing.enums import ConfidenceLevel, PassMode
 from extractforms.extractor import extract_values, persist_result, result_to_json_dict, run_extract
 from extractforms.typing.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
 from extractforms.settings import Settings
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _request(pdf: Path, mode: PassMode = PassMode.TWO_PASS) -> ExtractRequest:
@@ -31,10 +35,10 @@ def test_extract_values_fills_missing_with_null(monkeypatch, tmp_path: Path) -> 
     )
 
     class _FakeBackend:
-        def __init__(self, settings) -> None:  # noqa: ANN001
+        def __init__(self, settings) -> None:
             self.settings = settings
 
-        def extract_values(self, pages, keys, extra_instructions=None):  # noqa: ANN001
+        def extract_values(self, pages, keys, extra_instructions=None):
             return [FieldValue(key="a", value="x", page=1, confidence=ConfidenceLevel.HIGH)], None
 
     page = type("Page", (), {"page_number": 1})()
@@ -113,7 +117,7 @@ def test_persist_and_result_to_json_dict(tmp_path: Path) -> None:
     persist_result(result, output)
 
     data = result_to_json_dict(result)
-    flat = cast(dict[str, str], data["flat"])
+    flat = cast("dict[str, str]", data["flat"])
 
     assert output.exists()
     assert flat["a"] == "v"
@@ -137,18 +141,12 @@ def test_run_extract_one_pass(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_run_extract_one_schema_pass_errors_without_schema_id(tmp_path: Path) -> None:
-    from extractforms.exceptions import ExtractionError
-
     pdf = tmp_path / "doc.pdf"
     pdf.write_bytes(b"doc")
 
     request = _request(pdf, PassMode.ONE_SCHEMA_PASS)
-    try:
+    with pytest.raises(ExtractionError, match="requires --schema-id"):
         run_extract(request, Settings(schema_cache_dir=str(tmp_path)))
-    except ExtractionError as exc:
-        assert "requires --schema-id" in str(exc)
-    else:
-        raise AssertionError("Expected ExtractionError")
 
 
 def test_run_extract_two_pass_infers_and_saves(monkeypatch, tmp_path: Path) -> None:

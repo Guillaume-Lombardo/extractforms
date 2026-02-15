@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -63,7 +63,8 @@ class SchemaStore(BaseModel):
             safe_name = "schema"
         return self.root / f"{safe_name}-{schema_id}-{fingerprint}.schema.json"
 
-    def load(self, path: Path) -> SchemaSpec:
+    @staticmethod
+    def load(path: Path) -> SchemaSpec:
         """Load schema from path.
 
         Args:

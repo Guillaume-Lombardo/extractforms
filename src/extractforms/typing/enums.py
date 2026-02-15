@@ -25,9 +25,8 @@ class _EnumMixin(StrEnum):
             return cls(value)
         except ValueError as exc:
             supported = ", ".join(member.value for member in cls)
-            raise ValueError(
-                f"Unsupported {cls.__name__} value '{value}'. Expected one of: {supported}",
-            ) from exc
+            message = f"Unsupported {cls.__name__} value '{value}'. Expected one of: {supported}"
+            raise ValueError(message) from exc
 
     def to_str(self) -> str:
         """Return string representation.
@@ -41,9 +40,9 @@ class _EnumMixin(StrEnum):
 class PassMode(_EnumMixin):
     """Extraction pass strategy."""
 
-    ONE_PASS = "one_pass"
-    TWO_PASS = "two_pass"
-    ONE_SCHEMA_PASS = "one_schema_pass"
+    ONE_PASS = "one_pass"  # noqa: S105
+    TWO_PASS = "two_pass"  # noqa: S105
+    ONE_SCHEMA_PASS = "one_schema_pass"  # noqa: S105
 
 
 class FieldKind(_EnumMixin):

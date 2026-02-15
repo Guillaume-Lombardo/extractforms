@@ -35,10 +35,10 @@ class _FakeClient:
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # noqa: ANN001, ANN201
+    def __exit__(self, exc_type, exc, tb) -> None:
         return None
 
-    def post(self, url: str, headers: dict, json: dict) -> _FakeResponse:  # noqa: A002
+    def post(self, url: str, headers: dict, json: dict) -> _FakeResponse:
         assert url.endswith("/chat/completions")
         assert "Authorization" in headers
         assert "model" in json
@@ -87,10 +87,10 @@ def test_infer_schema_and_extract_values_with_mocked_post(mocker) -> None:
                     "choices": [
                         {
                             "message": {
-                                "content": '{"fields":[{"key":"a","value":"v","page":1,"confidence":"high"}]}'
-                            }
-                        }
-                    ]
+                                "content": '{"fields":[{"key":"a","value":"v","page":1,"confidence":"high"}]}',
+                            },
+                        },
+                    ],
                 },
                 None,
             ),
