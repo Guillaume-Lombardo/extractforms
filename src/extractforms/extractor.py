@@ -92,6 +92,18 @@ def _backend_concurrency(backend: MultimodalLLMBackend) -> int:
     return max(concurrency, 1)
 
 
+def _non_blank_keys(values: list[FieldValue]) -> set[str]:
+    """Return keys that have a non-empty extracted value.
+
+    Args:
+        values (list[FieldValue]): Extracted values.
+
+    Returns:
+        set[str]: Keys whose value is not blank.
+    """
+    return {value.key for value in values if value.value.strip()}
+
+
 async def _extract_values_for_keys(
     *,
     backend: MultimodalLLMBackend,
@@ -117,7 +129,7 @@ async def _extract_values_for_keys(
 
     normalized_chunk = max(chunk_pages, 1)
     page_batches: list[list[RenderedPage]] = []
-    if normalized_chunk == 1 or normalized_chunk >= len(pages):
+    if normalized_chunk >= len(pages):
         page_batches = [pages]
     else:
         for start in range(0, len(pages), normalized_chunk):
@@ -212,6 +224,7 @@ async def _collect_schema_values(
     request: ExtractRequest,
     backend: MultimodalLLMBackend,
     pages: list[RenderedPage],
+    use_page_groups: bool,
 ) -> tuple[list[FieldValue], list[PricingCall]]:
     """Collect extracted values and pricing calls for a schema.
 
@@ -220,6 +233,7 @@ async def _collect_schema_values(
         request (ExtractRequest): Extraction request.
         backend (MultimodalLLMBackend): Extraction backend.
         pages (list[RenderedPage]): Rendered pages.
+        use_page_groups (bool): Whether to route paged keys to page-specific calls.
 
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
@@ -227,7 +241,7 @@ async def _collect_schema_values(
     keys_by_page = _group_keys_by_page(schema)
     non_paged_keys = [field.key for field in schema.fields if field.page is None]
 
-    if not keys_by_page:
+    if not keys_by_page or not use_page_groups:
         keys = [field.key for field in schema.fields]
         return await _extract_values_for_keys(
             backend=backend,
@@ -250,7 +264,26 @@ async def _collect_schema_values(
         chunk_pages=request.chunk_pages,
         extra_instructions=request.extra_instructions,
     )
-    return paged_values + non_paged_values, paged_calls + non_paged_calls
+
+    extracted_values = paged_values + non_paged_values
+    extracted_non_blank = _non_blank_keys(extracted_values)
+    paged_keys = {field.key for field in schema.fields if field.page is not None}
+    missing_paged_keys = sorted(paged_keys - extracted_non_blank)
+
+    if not missing_paged_keys:
+        return extracted_values, paged_calls + non_paged_calls
+
+    fallback_values, fallback_calls = await _extract_values_for_keys(
+        backend=backend,
+        pages=pages,
+        keys=missing_paged_keys,
+        chunk_pages=request.chunk_pages,
+        extra_instructions=request.extra_instructions,
+    )
+    return (
+        extracted_values + fallback_values,
+        paged_calls + non_paged_calls + fallback_calls,
+    )
 
 
 def _build_result(
@@ -271,7 +304,9 @@ def _build_result(
     Returns:
         ExtractionResult: Normalized result.
     """
-    by_key = {field.key: field for field in values}
+    by_key: dict[str, FieldValue] = {}
+    for value in values:
+        by_key[value.key] = _select_better_value(by_key.get(value.key), value)
 
     normalized: list[FieldValue] = []
     flat: dict[str, str] = {}
@@ -354,6 +389,8 @@ def extract_values(
     schema: SchemaSpec,
     request: ExtractRequest,
     settings: Settings,
+    *,
+    use_page_groups: bool = True,
 ) -> tuple[ExtractionResult, PricingCall | None]:
     """Extract values using an existing schema.
 
@@ -361,6 +398,7 @@ def extract_values(
         schema (SchemaSpec): Schema used for extraction.
         request (ExtractRequest): Extraction request.
         settings (Settings): Runtime settings.
+        use_page_groups (bool): Whether to route paged keys to page-specific calls.
 
     Returns:
         tuple[ExtractionResult, PricingCall | None]: Result and pricing.
@@ -381,6 +419,7 @@ def extract_values(
             request=request,
             backend=backend,
             pages=pages,
+            use_page_groups=use_page_groups,
         ),
     )
 
@@ -408,7 +447,7 @@ def extract_one_pass(
         tuple[ExtractionResult, PricingCall | None]: Result and pricing.
     """
     schema, schema_pricing = infer_schema(request, settings)
-    result, values_pricing = extract_values(schema, request, settings)
+    result, values_pricing = extract_values(schema, request, settings, use_page_groups=False)
 
     merged_pricing = merge_pricing_calls([
         call for call in [schema_pricing, values_pricing] if call is not None

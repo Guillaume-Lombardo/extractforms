@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from extractforms.exceptions import ExtractionError
 from extractforms.typing.enums import ConfidenceLevel, PassMode
-from extractforms.extractor import extract_values, persist_result, result_to_json_dict, run_extract
+from extractforms.extractor import (
+    extract_one_pass,
+    extract_values,
+    persist_result,
+    result_to_json_dict,
+    run_extract,
+)
 from extractforms.typing.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
 from extractforms.settings import Settings
 
@@ -137,6 +143,39 @@ def test_run_extract_one_pass(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr("extractforms.extractor.extract_one_pass", lambda request, settings: (expected, None))
     result = run_extract(_request(pdf, PassMode.ONE_PASS), Settings(schema_cache_dir=str(tmp_path)))
 
+    assert result.flat["a"] == "v"
+
+
+def test_extract_one_pass_disables_page_groups(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[SchemaField(key="a", label="A", page=1)],
+    )
+    expected = ExtractionResult(
+        fields=[FieldValue(key="a", value="v", confidence=ConfidenceLevel.HIGH)],
+        flat={"a": "v"},
+        schema_fields_count=1,
+        pricing=None,
+    )
+
+    monkeypatch.setattr("extractforms.extractor.infer_schema", lambda request, settings: (schema, None))
+
+    observed: dict[str, object] = {}
+
+    def _fake_extract_values(schema_obj, request, settings, *, use_page_groups=True):
+        _ = (schema_obj, request, settings)
+        observed["use_page_groups"] = use_page_groups
+        return expected, None
+
+    monkeypatch.setattr("extractforms.extractor.extract_values", _fake_extract_values)
+    result, _ = extract_one_pass(_request(pdf, PassMode.ONE_PASS), Settings(schema_cache_dir=str(tmp_path)))
+
+    assert observed["use_page_groups"] is False
     assert result.flat["a"] == "v"
 
 
@@ -322,3 +361,40 @@ def test_extract_values_uses_chunk_pages_for_non_paged_keys(monkeypatch, tmp_pat
 
     assert calls == [2, 1]
     assert result.flat["a"] == "value-a"
+
+
+def test_extract_values_retries_missing_paged_keys_on_all_pages(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[SchemaField(key="a", label="A", page=2)],
+    )
+
+    calls: list[tuple[int, tuple[str, ...]]] = []
+
+    class _FakeBackend:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            _ = extra_instructions
+            calls.append((len(pages), tuple(keys)))
+            if len(pages) == 1:
+                return [FieldValue(key="a", value="", page=2, confidence=ConfidenceLevel.UNKNOWN)], None
+            return [FieldValue(key="a", value="found", page=1, confidence=ConfidenceLevel.HIGH)], None
+
+    page1 = type("Page", (), {"page_number": 1})()
+    page2 = type("Page", (), {"page_number": 2})()
+    monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1, page2])
+    monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
+
+    request = _request(pdf, PassMode.TWO_PASS)
+    request.chunk_pages = 2
+    result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
+
+    assert result.flat["a"] == "found"
+    assert calls == [(1, ("a",)), (2, ("a",))]
