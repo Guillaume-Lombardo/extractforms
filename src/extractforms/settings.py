@@ -8,10 +8,11 @@ import logging
 import re
 import ssl
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import Field, PrivateAttr
+from pydantic import Field, PrivateAttr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from extractforms.exceptions import SettingsError
@@ -445,4 +446,44 @@ def get_settings() -> Settings:
     try:
         return Settings()
     except Exception as exc:
+        if _is_missing_settings_error(exc):
+            ensure_env_file_exists()
+            try:
+                return Settings()
+            except Exception as retry_exc:
+                raise SettingsError(exc=retry_exc) from retry_exc
         raise SettingsError(exc=exc) from exc
+
+
+def ensure_env_file_exists(
+    *,
+    env_path: Path = Path(".env"),
+    template_path: Path = Path(".env.template"),
+) -> None:
+    """Create `.env` from template when missing.
+
+    Args:
+        env_path (Path): Target environment file path.
+        template_path (Path): Template file path.
+    """
+    if env_path.exists() or not template_path.exists():
+        return
+    env_path.write_text(template_path.read_text(encoding="utf-8"), encoding="utf-8")
+    logger.info(
+        "Created environment file from template",
+        extra={"env_path": str(env_path), "template_path": str(template_path)},
+    )
+
+
+def _is_missing_settings_error(exc: Exception) -> bool:
+    """Return whether the settings failure is due to missing values.
+
+    Args:
+        exc (Exception): Caught settings initialization error.
+
+    Returns:
+        bool: True when the error represents missing settings values.
+    """
+    if not isinstance(exc, ValidationError):
+        return False
+    return any(error.get("type") == "missing" for error in exc.errors())

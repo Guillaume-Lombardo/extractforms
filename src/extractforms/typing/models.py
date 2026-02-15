@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from extractforms.exceptions import ModelMismatchError
 from extractforms.typing.enums import ConfidenceLevel, FieldKind, PassMode
@@ -118,6 +118,26 @@ class ExtractRequest(BaseModel):
     schema_path: Path | None = None
     match_schema: bool = False
     extra_instructions: str | None = None
+
+    @field_validator("input_path")
+    @classmethod
+    def _validate_input_path(cls, value: Path) -> Path:
+        """Ensure input path exists and points to a file.
+
+        Args:
+            value (Path): Input path.
+
+        Raises:
+            ValueError: If the path does not exist or is not a file.
+
+        Returns:
+            Path: Validated input path.
+        """
+        if not value.exists():
+            raise ValueError("Input path does not exist")  # noqa: TRY003
+        if not value.is_file():
+            raise ValueError("Input path is not a file")  # noqa: TRY003
+        return value
 
 
 class MatchResult(BaseModel):
