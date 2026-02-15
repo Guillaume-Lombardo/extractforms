@@ -12,16 +12,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import certifi
+import httpx
 from pydantic import Field, PrivateAttr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from extractforms.exceptions import SettingsError
-
-try:
-    import httpx
-except Exception:  # pragma: no cover - optional dependency at runtime
-    httpx: Any
-    httpx = None
 
 NoProxyNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 NoProxyRegex = re.Pattern[str]
@@ -78,7 +74,7 @@ class Settings(BaseSettings):
         description="Path to SSL certificate.",
     )
     timeout: float = Field(
-        default=30.0,
+        default=300.0,
         validation_alias="TIMEOUT",
         description="Request timeout in seconds.",
     )
@@ -166,10 +162,6 @@ class Settings(BaseSettings):
 
     def _initialize_httpx_clients(self) -> None:
         """Create and cache sync/async HTTPX clients for proxy and no-proxy paths."""
-        if httpx is None:
-            self._httpx_clients = {}
-            return
-
         sync_proxy_kwargs = build_httpx_client_kwargs(self)
         sync_no_proxy_kwargs = build_httpx_client_kwargs(self, force_no_proxy=True)
         limits = httpx.Limits(max_connections=self.max_connections)
@@ -262,10 +254,46 @@ def build_ssl_context(settings: Settings) -> ssl.SSLContext:
     Returns:
         ssl.SSLContext: Configured TLS context.
     """
-    ssl_context = ssl.create_default_context(cafile=settings.cert_path)
+    if settings.cert_path:
+        ssl_context = ssl.create_default_context(cafile=settings.cert_path)
+    else:
+        ssl_context = ssl.create_default_context()
+        if not _cert_store_has_ca(ssl_context):
+            certifi_cafile = _get_certifi_cafile()
+            if certifi_cafile:
+                logger.info("Host trust store unavailable, falling back to certifi CA bundle")
+                ssl_context = ssl.create_default_context(cafile=certifi_cafile)
+
     ssl_context.verify_mode = ssl.CERT_REQUIRED
     ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
     return ssl_context
+
+
+def _cert_store_has_ca(ssl_context: ssl.SSLContext) -> bool:
+    """Return whether SSL context contains CA certificates.
+
+    Args:
+        ssl_context (ssl.SSLContext): SSL context to inspect.
+
+    Returns:
+        bool: True when at least one CA certificate is available.
+    """
+    try:
+        return ssl_context.cert_store_stats().get("x509_ca", 0) > 0
+    except Exception:
+        return False
+
+
+def _get_certifi_cafile() -> str | None:
+    """Return certifi CA bundle path when available.
+
+    Returns:
+        str | None: Path to certifi CA bundle, or None if unavailable.
+    """
+    try:
+        return str(certifi.where())
+    except Exception:
+        return None
 
 
 def _iter_no_proxy_entries(no_proxy: str | None) -> list[str]:

@@ -5,18 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, cast
 
-try:
-    import httpx
-except Exception:  # pragma: no cover - optional dependency at runtime
-    httpx: Any
-    httpx = None
-
-try:
-    import openai as openai_sdk
-except Exception:  # pragma: no cover - optional dependency at runtime
-    openai_sdk: Any
-    openai_sdk = None
-
+from openai import APIConnectionError, APIStatusError, APITimeoutError, OpenAI
 from pydantic import BaseModel, ConfigDict
 
 from extractforms import logger
@@ -73,16 +62,11 @@ class MultimodalLLMBackend:
         if not self._settings.openai_api_key:
             raise BackendError(message="OPENAI_API_KEY is required for multimodal backend")
 
-        if httpx is None:
-            raise BackendError(message="httpx is required for multimodal backend")
-        if openai_sdk is None:
-            raise BackendError(message="openai is required for multimodal backend")
-
         client = self._settings.select_sync_httpx_client(self._settings.openai_base_url)
         if client is None:
             raise BackendError(message="httpx clients are not initialized in settings")
         http_client = cast("Any", client)
-        openai_client = openai_sdk.OpenAI(
+        openai_client = OpenAI(
             api_key=self._settings.openai_api_key,
             base_url=self._settings.openai_base_url,
             http_client=http_client,
@@ -91,20 +75,16 @@ class MultimodalLLMBackend:
         try:
             completion = openai_client.chat.completions.create(**payload)
             data = completion.model_dump(mode="json")
+        except APIStatusError as exc:
+            status_code = getattr(exc, "status_code", None)
+            raise BackendError(
+                message=f"Chat completion request failed with status {status_code}",
+            ) from exc
+        except APITimeoutError as exc:
+            raise BackendError(message="Chat completion request timed out") from exc
+        except APIConnectionError as exc:
+            raise BackendError(message=f"Chat completion request failed: {exc}") from exc
         except Exception as exc:
-            status_error_type = getattr(openai_sdk, "APIStatusError", None)
-            timeout_error_type = getattr(openai_sdk, "APITimeoutError", None)
-            connection_error_type = getattr(openai_sdk, "APIConnectionError", None)
-
-            if status_error_type and isinstance(exc, status_error_type):
-                status_code = getattr(exc, "status_code", None)
-                raise BackendError(
-                    message=f"Chat completion request failed with status {status_code}",
-                ) from exc
-            if timeout_error_type and isinstance(exc, timeout_error_type):
-                raise BackendError(message="Chat completion request timed out") from exc
-            if connection_error_type and isinstance(exc, connection_error_type):
-                raise BackendError(message=f"Chat completion request failed: {exc}") from exc
             raise BackendError(
                 message=f"Chat completion request failed: {exc}",
             ) from exc

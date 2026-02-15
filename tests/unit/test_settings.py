@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ssl
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -116,6 +116,84 @@ def test_build_ssl_context_enforces_tls() -> None:
     context = build_ssl_context(Settings())
     assert context.verify_mode == ssl.CERT_REQUIRED
     assert context.minimum_version == ssl.TLSVersion.TLSv1_2
+
+
+def test_build_ssl_context_uses_cert_path_when_provided(monkeypatch) -> None:
+    class _SettingsStub:
+        def __init__(self, cert_path: str | None) -> None:
+            self.cert_path = cert_path
+
+    class _FakeContext:
+        def __init__(self) -> None:
+            self.verify_mode: int | None = None
+            self.minimum_version: ssl.TLSVersion | None = None
+
+    calls: list[str | None] = []
+
+    def _fake_create_default_context(*, cafile: str | None = None) -> _FakeContext:
+        calls.append(cafile)
+        return _FakeContext()
+
+    monkeypatch.setattr("extractforms.settings.ssl.create_default_context", _fake_create_default_context)
+    settings = cast("Settings", _SettingsStub("/path/internal-ca.pem"))
+
+    _ = build_ssl_context(settings)
+
+    assert calls == ["/path/internal-ca.pem"]
+
+
+def test_build_ssl_context_falls_back_to_certifi_when_host_store_empty(monkeypatch) -> None:
+    class _SettingsStub:
+        def __init__(self, cert_path: str | None) -> None:
+            self.cert_path = cert_path
+
+    class _FakeContext:
+        def __init__(self) -> None:
+            self.verify_mode: int | None = None
+            self.minimum_version: ssl.TLSVersion | None = None
+
+    calls: list[str | None] = []
+
+    def _fake_create_default_context(*, cafile: str | None = None) -> _FakeContext:
+        calls.append(cafile)
+        return _FakeContext()
+
+    monkeypatch.setattr("extractforms.settings.ssl.create_default_context", _fake_create_default_context)
+    monkeypatch.setattr("extractforms.settings._cert_store_has_ca", lambda _ctx: False)
+    monkeypatch.setattr("extractforms.settings._get_certifi_cafile", lambda: "/path/certifi.pem")
+
+    settings = cast("Settings", _SettingsStub(None))
+
+    _ = build_ssl_context(settings)
+
+    assert calls == [None, "/path/certifi.pem"]
+
+
+def test_build_ssl_context_keeps_host_store_when_available(monkeypatch) -> None:
+    class _SettingsStub:
+        def __init__(self, cert_path: str | None) -> None:
+            self.cert_path = cert_path
+
+    class _FakeContext:
+        def __init__(self) -> None:
+            self.verify_mode: int | None = None
+            self.minimum_version: ssl.TLSVersion | None = None
+
+    calls: list[str | None] = []
+
+    def _fake_create_default_context(*, cafile: str | None = None) -> _FakeContext:
+        calls.append(cafile)
+        return _FakeContext()
+
+    monkeypatch.setattr("extractforms.settings.ssl.create_default_context", _fake_create_default_context)
+    monkeypatch.setattr("extractforms.settings._cert_store_has_ca", lambda _ctx: True)
+    monkeypatch.setattr("extractforms.settings._get_certifi_cafile", lambda: "/path/certifi.pem")
+
+    settings = cast("Settings", _SettingsStub(None))
+
+    _ = build_ssl_context(settings)
+
+    assert calls == [None]
 
 
 def test_build_httpx_client_kwargs_uses_proxy(monkeypatch) -> None:

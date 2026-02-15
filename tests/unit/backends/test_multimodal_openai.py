@@ -73,28 +73,13 @@ def test_post_chat_completions_success(monkeypatch) -> None:
         lambda _self, _target_url: _FakeClient(),
     )
 
-    class _FakeOpenAISDK:
-        OpenAI = _FakeOpenAI
-
-    monkeypatch.setattr(multimodal_openai, "openai_sdk", _FakeOpenAISDK)
+    monkeypatch.setattr(multimodal_openai, "OpenAI", _FakeOpenAI)
 
     payload, pricing = backend._post_chat_completions({"model": "x"})
 
     assert payload["usage"]["prompt_tokens"] == 10
     assert pricing is not None
     assert pricing.model == "x"
-
-
-def test_post_chat_completions_requires_openai(monkeypatch) -> None:
-    backend = MultimodalLLMBackend(
-        _settings(
-            base_url="https://llm.local/v1",
-            api_key="test-api-key",  # pragma: allowlist secret
-        ),
-    )
-    monkeypatch.setattr(multimodal_openai, "openai_sdk", None)
-    with pytest.raises(BackendError, match="openai is required"):
-        backend._post_chat_completions({})
 
 
 def test_infer_schema_and_extract_values_with_mocked_post(mocker) -> None:
