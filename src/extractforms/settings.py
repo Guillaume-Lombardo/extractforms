@@ -2,15 +2,26 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 import ssl
 from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from extractforms.exceptions import SettingsError
+
+try:
+    import httpx
+except Exception:  # pragma: no cover - optional dependency at runtime
+    httpx: Any
+    httpx = None
+
+NoProxyNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
+NoProxyRegex = re.Pattern[str]
 
 
 class Settings(BaseSettings):
@@ -104,6 +115,66 @@ class Settings(BaseSettings):
         validation_alias="NULL_SENTINEL",
         description="Sentinel value for null fields.",
     )
+    _no_proxy_regex: NoProxyRegex | None = PrivateAttr(default=None)
+    _no_proxy_networks: tuple[NoProxyNetwork, ...] = PrivateAttr(default=())
+    _httpx_clients: dict[str, object] = PrivateAttr(default_factory=dict)
+
+    def model_post_init(self, __context: object, /) -> None:
+        """Initialize derived runtime settings."""
+        self._no_proxy_regex, self._no_proxy_networks = compile_no_proxy_matchers(self.no_proxy)
+        self._initialize_httpx_clients()
+
+    @property
+    def no_proxy_regex(self) -> NoProxyRegex | None:
+        """Return compiled NO_PROXY regex."""
+        return self._no_proxy_regex
+
+    @property
+    def no_proxy_networks(self) -> tuple[NoProxyNetwork, ...]:
+        """Return parsed NO_PROXY CIDR networks."""
+        return self._no_proxy_networks
+
+    @property
+    def httpx_clients(self) -> dict[str, object]:
+        """Return cached HTTPX clients."""
+        return self._httpx_clients
+
+    def should_bypass_proxy(self, target_url: str | None) -> bool:
+        """Return whether the URL should bypass proxies."""
+        return _is_no_proxy_target(target_url, self)
+
+    def select_sync_httpx_client(self, target_url: str | None) -> object | None:
+        """Return sync HTTPX client selected for target URL."""
+        if not self._httpx_clients:
+            return None
+        if self.should_bypass_proxy(target_url):
+            return self._httpx_clients["sync_no_proxy"]
+        return self._httpx_clients["sync_proxy"]
+
+    def select_async_httpx_client(self, target_url: str | None) -> object | None:
+        """Return async HTTPX client selected for target URL."""
+        if not self._httpx_clients:
+            return None
+        if self.should_bypass_proxy(target_url):
+            return self._httpx_clients["async_no_proxy"]
+        return self._httpx_clients["async_proxy"]
+
+    def _initialize_httpx_clients(self) -> None:
+        """Create and cache sync/async HTTPX clients for proxy and no-proxy paths."""
+        if httpx is None:
+            self._httpx_clients = {}
+            return
+
+        sync_proxy_kwargs = build_httpx_client_kwargs(self)
+        sync_no_proxy_kwargs = build_httpx_client_kwargs(self, force_no_proxy=True)
+        limits = httpx.Limits(max_connections=self.max_connections)
+
+        self._httpx_clients = {
+            "sync_proxy": httpx.Client(**sync_proxy_kwargs, limits=limits),
+            "sync_no_proxy": httpx.Client(**sync_no_proxy_kwargs, limits=limits),
+            "async_proxy": httpx.AsyncClient(**sync_proxy_kwargs, limits=limits),
+            "async_no_proxy": httpx.AsyncClient(**sync_no_proxy_kwargs, limits=limits),
+        }
 
 
 def build_ssl_context(settings: Settings) -> ssl.SSLContext:
@@ -121,67 +192,146 @@ def build_ssl_context(settings: Settings) -> ssl.SSLContext:
     return ssl_context
 
 
-def _normalize_no_proxy_entry(raw_entry: str) -> str:
-    """Normalize one NO_PROXY entry for hostname matching.
+def _iter_no_proxy_entries(no_proxy: str | None) -> list[str]:
+    """Split NO_PROXY into normalized entries.
 
     Args:
-        raw_entry: Raw NO_PROXY entry.
+        no_proxy: Raw NO_PROXY value.
 
     Returns:
-        str: Normalized hostname pattern.
+        list[str]: Normalized entries.
     """
-    entry = raw_entry.lower()
-    # Prefix with // so urlparse can split host:port even without scheme.
-    hostname = urlparse(entry).hostname if "://" in entry else urlparse(f"//{entry}").hostname
-    normalized = (hostname or entry).lower()
-    return normalized.strip("[]").removeprefix(".")
+    if not no_proxy:
+        return []
+    return [entry.strip() for entry in no_proxy.split(",") if entry.strip()]
 
 
-def _is_no_proxy_target(target_url: str | None, no_proxy: str | None) -> bool:
+def _normalize_no_proxy_host(entry: str) -> str:
+    """Normalize host entry from NO_PROXY.
+
+    Args:
+        entry: Raw NO_PROXY entry.
+
+    Returns:
+        str: Host expression usable for host matching.
+    """
+    candidate = entry.lower()
+    if "://" in candidate:
+        candidate = (urlparse(candidate).hostname or "").lower()
+    return candidate.strip("[]").removeprefix(".")
+
+
+def _compile_no_proxy_regex(no_proxy: str | None) -> NoProxyRegex | None:
+    """Compile NO_PROXY host/wildcard entries as one regex.
+
+    Args:
+        no_proxy: Raw NO_PROXY value.
+
+    Returns:
+        NoProxyRegex | None: Compiled regex for host matching.
+    """
+    entries = _iter_no_proxy_entries(no_proxy)
+    if not entries:
+        return None
+
+    regex_parts: list[str] = []
+    for entry in entries:
+        if entry == "*":
+            return re.compile(r"^.*$", re.IGNORECASE)
+
+        try:
+            ipaddress.ip_network(entry, strict=False)
+            continue
+        except ValueError:
+            pass
+
+        host_pattern = _normalize_no_proxy_host(entry)
+        if not host_pattern:
+            continue
+
+        escaped = re.escape(host_pattern).replace(r"\*", ".*")
+        if "*" in host_pattern or re.fullmatch(r"\d+\.\d+\.\d+\.\d+", host_pattern):
+            regex_parts.append(escaped)
+        else:
+            regex_parts.append(rf"(?:{escaped}|(?:.*\.){escaped})")
+
+    if not regex_parts:
+        return None
+    return re.compile(rf"^(?:{'|'.join(regex_parts)})$", re.IGNORECASE)
+
+
+def _parse_no_proxy_networks(no_proxy: str | None) -> tuple[NoProxyNetwork, ...]:
+    """Parse CIDR entries from NO_PROXY.
+
+    Args:
+        no_proxy: Raw NO_PROXY value.
+
+    Returns:
+        tuple[NoProxyNetwork, ...]: Parsed networks.
+    """
+    networks: list[NoProxyNetwork] = []
+    for entry in _iter_no_proxy_entries(no_proxy):
+        try:
+            network = ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            continue
+        networks.append(network)
+    return tuple(networks)
+
+
+def compile_no_proxy_matchers(no_proxy: str | None) -> tuple[NoProxyRegex | None, tuple[NoProxyNetwork, ...]]:
+    """Compile NO_PROXY regex and CIDR networks.
+
+    Args:
+        no_proxy: Raw NO_PROXY value.
+
+    Returns:
+        tuple[NoProxyRegex | None, tuple[NoProxyNetwork, ...]]: Compiled host regex and networks.
+    """
+    return _compile_no_proxy_regex(no_proxy), _parse_no_proxy_networks(no_proxy)
+
+
+def _is_no_proxy_target(target_url: str | None, settings: Settings) -> bool:
     """Return whether the target URL should bypass proxies.
 
     Args:
         target_url: Target request URL.
-        no_proxy: Comma-separated no-proxy entries.
+        settings: Runtime settings.
 
     Returns:
         bool: True when proxy must be bypassed.
     """
-    if not target_url or not no_proxy:
+    if not target_url:
         return False
 
-    parsed = urlparse(target_url)
-    hostname = parsed.hostname
+    hostname = urlparse(target_url).hostname
     if not hostname:
         return False
 
     host = hostname.lower().strip("[]")
-    for raw_entry in (entry.strip() for entry in no_proxy.split(",")):
-        if not raw_entry:
-            continue
-        if raw_entry == "*":
-            return True
+    regex = settings.no_proxy_regex
+    if regex and regex.fullmatch(host):
+        return True
 
-        entry = _normalize_no_proxy_entry(raw_entry)
-        if not entry:
-            continue
-
-        if host == entry or host.endswith(f".{entry}"):
-            return True
-
-    return False
+    try:
+        host_ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(host_ip in network for network in settings.no_proxy_networks)
 
 
 def build_httpx_client_kwargs(
     settings: Settings,
     *,
     target_url: str | None = None,
+    force_no_proxy: bool = False,
 ) -> dict[str, Any]:
     """Build kwargs used for `httpx.Client` and `httpx.AsyncClient`.
 
     Args:
         settings: Runtime settings.
         target_url: Optional target URL used for NO_PROXY evaluation.
+        force_no_proxy: If true, always build kwargs without proxy.
 
     Returns:
         dict[str, Any]: Arguments for client constructors.
@@ -193,7 +343,8 @@ def build_httpx_client_kwargs(
         "timeout": settings.timeout,
     }
 
-    if proxy_url and not _is_no_proxy_target(target_url, settings.no_proxy):
+    should_bypass = force_no_proxy or _is_no_proxy_target(target_url, settings)
+    if proxy_url and not should_bypass:
         kwargs["proxy"] = proxy_url
 
     return kwargs
