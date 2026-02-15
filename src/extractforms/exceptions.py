@@ -31,3 +31,36 @@ class AsyncExecutionError(PackageError):
     def __str__(self) -> str:
         """Return error message payload."""
         return f"{self.message}: {self.result}"
+
+
+@dataclass(frozen=True)
+class BackendError(PackageError):
+    """Raised when a backend call fails."""
+
+    message: str
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return self.message
+
+
+@dataclass(frozen=True)
+class ExtractionError(PackageError):
+    """Raised when extraction orchestration fails."""
+
+    message: str
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return self.message
+
+
+@dataclass(frozen=True)
+class DependencyError(PackageError):
+    """Raised when optional runtime dependencies are missing."""
+
+    message: str
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return self.message

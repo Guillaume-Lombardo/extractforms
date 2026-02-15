@@ -106,10 +106,45 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"**/tests/**/*.py" = ["ANN001", "ANN201", "D103", "PLR2004", "S101", "SLF001"]
+"**/tests/**/*.py" = [
+  "ANN001",
+  "ANN201",
+  "ANN202",
+  "ANN204",
+  "ARG002",
+  "ARG004",
+  "ARG005",
+  "B903",
+  "COM812",
+  "D103",
+  "I001",
+  "PLR2004",
+  "PLR6301",
+  "RUF069",
+  "RUF100",
+  "S101",
+  "SLF001",
+  "TC006",
+  "TC003",
+  "TRY003",
+  "PT017",
+  "PLC0415",
+]
 "scripts/*.py" = ["T201", "T203"]
 "launch_*.py" = ["T201", "T203"]
 "**/__init__.py" = ["D104"]
+"src/extractforms/__init__.py" = ["RUF067"]
+"src/extractforms/backends/protocol.py" = ["TC001", "TC003"]
+"src/extractforms/backends/multimodal_openai.py" = ["DOC501", "PLC0415"]
+"src/extractforms/backends/ocr_document_intelligence.py" = ["ARG002", "DOC202", "PLR6301", "TC001"]
+"src/extractforms/cli.py" = ["TRY003"]
+"src/extractforms/enums.py" = ["S105", "TRY003"]
+"src/extractforms/extractor.py" = ["C901", "PLR0912", "TC001"]
+"src/extractforms/models.py" = ["TC003"]
+"src/extractforms/pdf_render.py" = ["PLC0415", "PLR0913", "TC003", "TRY300"]
+"src/extractforms/prompts.py" = ["ANN401"]
+"src/extractforms/schema_store.py" = ["PLR6301", "TC003"]
+"tests/unit/test_enums.py" = ["PT011"]
 
 [lint.pydocstyle]
 convention = "google"

@@ -2,25 +2,36 @@
 
 ## Role
 
-Pragmatic software agent for the `extractforms` package.
+Pragmatic software agent for the `extractforms` package (`extractforms` module).
 
 ## Objective
 
-Deliver high-quality, maintainable increments for a Python package and its CLI/API surface.
+Deliver high-quality, maintainable increments for a Python package and its CLI/API to extract key/value form fields from PDFs through multimodal LLM first, with OCR-ready backend abstractions.
 
 ## Key Principles
 
 - Keep contracts explicit (CLI, API, config, outputs).
 - Preserve reproducibility with explicit configuration.
-- Prefer clear boundaries between domain logic and infrastructure.
+- Keep strict boundaries between domain orchestration and backend/infrastructure adapters.
 - Keep tests and docs aligned with behavior.
+- Build enterprise-ready network behavior (proxy + internal TLS CA) into settings and HTTP clients.
 
 ## Collaboration Contract
 
 - Clarify unclear scope before coding critical parts.
 - Surface assumptions explicitly when requirements are incomplete.
-- Prefer small, testable increments.
+- Prefer small, testable increments aligned with `plan.md` phases.
 - Keep docs, skills, and plan synchronized with implementation.
+- Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
+
+## Extraction Strategy Guardrails
+
+- Default recommendation: `TWO_PASS` extraction.
+  - Pass 1 infers stable schema and metadata.
+  - Pass 2 extracts values using schema constraints.
+- Support `ONE_PASS` for simplicity and `ONE_SCHEMA_PASS` when user provides schema input.
+- Ensure strict JSON structured outputs with schema sanitization and `extra="forbid"` semantics.
+- Enforce null sentinel behavior (`"NULL"` unless configured otherwise) for missing values.
 
 ## Definition Of Done (feature level)
 
@@ -39,3 +50,4 @@ A feature is done only if:
 
 - Do not introduce unrelated features in the same change.
 - Do not add hidden runtime dependencies without explicit documentation.
+- Do not hardwire one extraction backend into the domain layer.

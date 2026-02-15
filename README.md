@@ -1,6 +1,6 @@
 # ExtractForms
 
-A python project to turn scanned forms into a list of key-value pairs.
+`extractforms` is a Python package and CLI to extract key/value fields from PDF forms.
 
 ## Quickstart
 
@@ -14,21 +14,33 @@ uv run pytest
 uv run pre-commit run --all-files
 ```
 
-## First Commit
+## CLI
 
 ```bash
-git add .
-git commit -m "initial commit"
-git push -u origin main
+extractforms extract --input form.pdf --output results/result.json --passes 2
 ```
+
+Supported options include:
+- `--no-cache`
+- `--dpi`, `--image-format`, `--page-start`, `--page-end`, `--max-pages`
+- `--chunk-pages`
+- `--extra-instructions`
+- `--schema-id`, `--schema-path`, `--match-schema`
+
+## Environment
+
+Copy `.env.template` to `.env` and configure:
+- logging (`LOG_LEVEL`, `LOG_JSON`, `LOG_FILE`)
+- enterprise network/TLS (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `CERT_PATH`)
+- model endpoint (`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`)
 
 ## Project Layout
 
-- `src/extractforms`: package code
-- `tests/unit`: fast default tests
-- `tests/integration`: component-level tests
-- `tests/end2end`: user-facing behavior tests
-- `skills`: AI helper skills for coding workflows
+- `/Users/g1lom/Documents/extractforms/src/extractforms`: package code
+- `/Users/g1lom/Documents/extractforms/tests/unit`: fast default tests
+- `/Users/g1lom/Documents/extractforms/tests/integration`: component-level tests
+- `/Users/g1lom/Documents/extractforms/tests/end2end`: user-facing behavior tests
+- `/Users/g1lom/Documents/extractforms/skills`: AI helper skills for coding workflows
 
 ## Release
 
