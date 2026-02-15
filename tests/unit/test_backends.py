@@ -29,28 +29,11 @@ class _FakeResponse:
 
 
 class _FakeClient:
-    def __init__(self, **kwargs) -> None:  # noqa: ANN003
-        self.kwargs = kwargs
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        return None
-
     def post(self, url: str, headers: dict, json: dict) -> _FakeResponse:
         assert url.endswith("/chat/completions")
         assert "Authorization" in headers
         assert "model" in json
         return _FakeResponse()
-
-
-class _FakeHttpxModule:
-    Client = _FakeClient
-
-    class Limits:
-        def __init__(self, max_connections: int) -> None:
-            self.max_connections = max_connections
 
 
 def test_post_chat_completions_requires_base_url_and_key() -> None:
@@ -61,8 +44,12 @@ def test_post_chat_completions_requires_base_url_and_key() -> None:
 
 def test_post_chat_completions_success(monkeypatch) -> None:
     backend = MultimodalLLMBackend(_settings(base_url="https://llm.local/v1", api_key="secret", model="x"))
+    monkeypatch.setattr(
+        Settings,
+        "select_sync_httpx_client",
+        lambda _self, _target_url: _FakeClient(),
+    )
 
-    monkeypatch.setattr("extractforms.backends.multimodal_openai.httpx", _FakeHttpxModule)
     payload, pricing = backend._post_chat_completions({"model": "x"})
 
     assert payload["usage"]["prompt_tokens"] == 10

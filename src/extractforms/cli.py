@@ -135,6 +135,8 @@ def main() -> int:
     except Exception:
         logger.exception("Unexpected error during extraction")
         return 1
+    finally:
+        settings.close_httpx_clients()
 
     output_path = request.output_path
     if output_path is None:

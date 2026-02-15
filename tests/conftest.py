@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from extractforms import logger
 
 
 def _mark_tests_by_directory(
@@ -19,7 +20,11 @@ def _mark_tests_by_directory(
     for item in items:
         try:
             path = Path(str(item.fspath)).resolve()
-        except Exception:  # noqa: S112
+        except Exception:
+            logger.warning(
+                "Could not resolve path for test item; skipping marker assignment",
+                extra={"test_item_name": str(item.name), "marker": marker},
+            )
             continue
 
         if path == target_dir or target_dir in path.parents:

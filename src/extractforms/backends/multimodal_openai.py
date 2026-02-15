@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 try:
     import httpx
@@ -20,8 +20,10 @@ from extractforms.prompts import (
     build_values_extraction_prompt,
     schema_response_format,
 )
-from extractforms.settings import Settings, build_httpx_client_kwargs
 from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaField, SchemaSpec
+
+if TYPE_CHECKING:
+    from extractforms.settings import Settings
 
 
 class _SchemaResponse(BaseModel):
@@ -68,11 +70,10 @@ class MultimodalLLMBackend:
         if httpx is None:
             raise BackendError(message="httpx is required for multimodal backend")
 
-        kwargs = build_httpx_client_kwargs(
-            self._settings,
-            target_url=self._settings.openai_base_url,
-        )
-        kwargs["limits"] = httpx.Limits(max_connections=self._settings.max_connections)
+        client = self._settings.select_sync_httpx_client(self._settings.openai_base_url)
+        if client is None:
+            raise BackendError(message="httpx clients are not initialized in settings")
+        http_client = cast("Any", client)
 
         url = f"{self._settings.openai_base_url.rstrip('/')}/chat/completions"
         headers = {
@@ -81,10 +82,9 @@ class MultimodalLLMBackend:
         }
 
         try:
-            with httpx.Client(**kwargs) as client:
-                response = client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                data = response.json()
+            response = http_client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
         except httpx.HTTPStatusError as exc:
             raise BackendError(
                 message=f"Chat completion request failed with status {exc.response.status_code}",

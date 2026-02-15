@@ -19,6 +19,7 @@ from extractforms.typing.models import (
     FieldValue,
     MatchResult,
     PricingCall,
+    RenderedPage,
     SchemaSpec,
 )
 
@@ -71,7 +72,7 @@ def _select_better_value(current: FieldValue | None, candidate: FieldValue) -> F
 def _extract_values_for_keys(
     *,
     backend: MultimodalLLMBackend,
-    pages: list,
+    pages: list[RenderedPage],
     keys: list[str],
     chunk_pages: int,
     extra_instructions: str | None,
@@ -92,7 +93,7 @@ def _extract_values_for_keys(
         return [], []
 
     normalized_chunk = max(chunk_pages, 1)
-    page_batches: list[list] = []
+    page_batches: list[list[RenderedPage]] = []
     if normalized_chunk == 1 or normalized_chunk >= len(pages):
         page_batches = [pages]
     else:
@@ -113,6 +114,89 @@ def _extract_values_for_keys(
             pricing_calls.append(call)
 
     return list(by_key.values()), pricing_calls
+
+
+def _extract_values_for_page_groups(
+    *,
+    backend: MultimodalLLMBackend,
+    pages: list[RenderedPage],
+    keys_by_page: dict[int, list[str]],
+    extra_instructions: str | None,
+) -> tuple[list[FieldValue], list[PricingCall]]:
+    """Extract values for page-scoped key groups.
+
+    Args:
+        backend: Extraction backend.
+        pages: Rendered pages.
+        keys_by_page: Keys grouped by page number.
+        extra_instructions: Additional prompt instructions.
+
+    Returns:
+        tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
+    """
+    pages_by_number = {page.page_number: page for page in pages}
+    extracted_values: list[FieldValue] = []
+    calls: list[PricingCall] = []
+    for page_number, keys in sorted(keys_by_page.items()):
+        page = pages_by_number.get(page_number)
+        if not page:
+            continue
+        page_values, call = backend.extract_values(
+            [page],
+            keys,
+            extra_instructions=extra_instructions,
+        )
+        extracted_values.extend(page_values)
+        if call:
+            calls.append(call)
+    return extracted_values, calls
+
+
+def _collect_schema_values(
+    *,
+    schema: SchemaSpec,
+    request: ExtractRequest,
+    backend: MultimodalLLMBackend,
+    pages: list[RenderedPage],
+) -> tuple[list[FieldValue], list[PricingCall]]:
+    """Collect extracted values and pricing calls for a schema.
+
+    Args:
+        schema: Schema used for extraction.
+        request: Extraction request.
+        backend: Extraction backend.
+        pages: Rendered pages.
+
+    Returns:
+        tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
+    """
+    keys_by_page = _group_keys_by_page(schema)
+    non_paged_keys = [field.key for field in schema.fields if field.page is None]
+
+    if not keys_by_page:
+        keys = [field.key for field in schema.fields]
+        return _extract_values_for_keys(
+            backend=backend,
+            pages=pages,
+            keys=keys,
+            chunk_pages=request.chunk_pages,
+            extra_instructions=request.extra_instructions,
+        )
+
+    paged_values, paged_calls = _extract_values_for_page_groups(
+        backend=backend,
+        pages=pages,
+        keys_by_page=keys_by_page,
+        extra_instructions=request.extra_instructions,
+    )
+    non_paged_values, non_paged_calls = _extract_values_for_keys(
+        backend=backend,
+        pages=pages,
+        keys=non_paged_keys,
+        chunk_pages=request.chunk_pages,
+        extra_instructions=request.extra_instructions,
+    )
+    return paged_values + non_paged_values, paged_calls + non_paged_calls
 
 
 def _build_result(
@@ -212,7 +296,7 @@ def _group_keys_by_page(schema: SchemaSpec) -> dict[int, list[str]]:
     return keys_by_page
 
 
-def extract_values(  # noqa: PLR0914
+def extract_values(
     schema: SchemaSpec,
     request: ExtractRequest,
     settings: Settings,
@@ -237,45 +321,12 @@ def extract_values(  # noqa: PLR0914
     )
     backend = MultimodalLLMBackend(settings)
 
-    calls: list[PricingCall] = []
-    extracted_values: list[FieldValue] = []
-
-    keys_by_page = _group_keys_by_page(schema)
-    non_paged_keys = [field.key for field in schema.fields if field.page is None]
-
-    if keys_by_page:
-        pages_by_number = {page.page_number: page for page in pages}
-        for page_number, keys in sorted(keys_by_page.items()):
-            page = pages_by_number.get(page_number)
-            if not page:
-                continue
-            page_values, call = backend.extract_values(
-                [page],
-                keys,
-                extra_instructions=request.extra_instructions,
-            )
-            extracted_values.extend(page_values)
-            if call:
-                calls.append(call)
-        non_paged_values, non_paged_calls = _extract_values_for_keys(
-            backend=backend,
-            pages=pages,
-            keys=non_paged_keys,
-            chunk_pages=request.chunk_pages,
-            extra_instructions=request.extra_instructions,
-        )
-        extracted_values.extend(non_paged_values)
-        calls.extend(non_paged_calls)
-    else:
-        keys = [field.key for field in schema.fields]
-        extracted_values, chunk_calls = _extract_values_for_keys(
-            backend=backend,
-            pages=pages,
-            keys=keys,
-            chunk_pages=request.chunk_pages,
-            extra_instructions=request.extra_instructions,
-        )
-        calls.extend(chunk_calls)
+    extracted_values, calls = _collect_schema_values(
+        schema=schema,
+        request=request,
+        backend=backend,
+        pages=pages,
+    )
 
     pricing = merge_pricing_calls(calls)
     result = _build_result(
@@ -350,6 +401,77 @@ def _extract_for_schema_id(
     return None
 
 
+def _extract_with_schema(schema: SchemaSpec, request: ExtractRequest, settings: Settings) -> ExtractionResult:
+    """Extract values with a pre-loaded schema.
+
+    Args:
+        schema: Pre-loaded schema.
+        request: Extraction request.
+        settings: Runtime settings.
+
+    Returns:
+        ExtractionResult: Extraction result.
+    """
+    result, _ = extract_values(schema, request, settings)
+    return result
+
+
+def _run_one_schema_pass(
+    request: ExtractRequest,
+    settings: Settings,
+    store: SchemaStore,
+) -> ExtractionResult:
+    """Handle ONE_SCHEMA_PASS extraction mode.
+
+    Args:
+        request: Extraction request.
+        settings: Runtime settings.
+        store: Schema store.
+
+    Raises:
+        ExtractionError: If schema identifier is missing or unknown.
+
+    Returns:
+        ExtractionResult: Extraction result.
+    """
+    if not request.schema_id:
+        raise ExtractionError(message="ONE_SCHEMA_PASS requires --schema-id or --schema-path")
+
+    result = _extract_for_schema_id(store, request.schema_id, request, settings)
+    if result is None:
+        raise ExtractionError(message=f"Schema id not found: {request.schema_id}")
+    return result
+
+
+def _run_two_pass(
+    request: ExtractRequest,
+    settings: Settings,
+    store: SchemaStore,
+) -> ExtractionResult:
+    """Handle TWO_PASS extraction mode.
+
+    Args:
+        request: Extraction request.
+        settings: Runtime settings.
+        store: Schema store.
+
+    Returns:
+        ExtractionResult: Extraction result.
+    """
+    if request.match_schema or request.use_cache:
+        fingerprint = SchemaStore.fingerprint_pdf(request.input_path)
+        matched = store.match_schema(fingerprint)
+        if matched.matched and matched.schema_id:
+            cached = _extract_for_schema_id(store, matched.schema_id, request, settings)
+            if cached is not None:
+                return cached
+
+    schema, _ = infer_schema(request, settings)
+    if request.use_cache:
+        store.save(schema)
+    return _extract_with_schema(schema, request, settings)
+
+
 def persist_result(result: ExtractionResult, path: Path) -> None:
     """Persist extraction result as JSON.
 
@@ -361,7 +483,7 @@ def persist_result(result: ExtractionResult, path: Path) -> None:
     path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
 
 
-def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult:  # noqa: C901
+def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult:
     """Top-level extraction flow used by CLI.
 
     Args:
@@ -378,38 +500,17 @@ def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult
 
     if request.schema_path:
         schema = store.load(request.schema_path)
-        result, _ = extract_values(schema, request, settings)
-        return result
+        return _extract_with_schema(schema, request, settings)
 
     if request.mode == PassMode.ONE_PASS:
         result, _ = extract_one_pass(request, settings)
         return result
 
     if request.mode == PassMode.ONE_SCHEMA_PASS:
-        if not request.schema_id:
-            raise ExtractionError(message="ONE_SCHEMA_PASS requires --schema-id or --schema-path")
-
-        result = _extract_for_schema_id(store, request.schema_id, request, settings)
-        if result is not None:
-            return result
-        raise ExtractionError(message=f"Schema id not found: {request.schema_id}")
+        return _run_one_schema_pass(request, settings, store)
 
     if request.mode == PassMode.TWO_PASS:
-        fingerprint = SchemaStore.fingerprint_pdf(request.input_path)
-
-        if request.match_schema or request.use_cache:
-            matched = store.match_schema(fingerprint)
-            if matched.matched and matched.schema_id:
-                result = _extract_for_schema_id(store, matched.schema_id, request, settings)
-                if result is not None:
-                    return result
-
-        schema, _ = infer_schema(request, settings)
-        if request.use_cache:
-            store.save(schema)
-
-        result, _ = extract_values(schema, request, settings)
-        return result
+        return _run_two_pass(request, settings, store)
 
     raise ExtractionError(message=f"Unsupported mode: {request.mode}")
 
