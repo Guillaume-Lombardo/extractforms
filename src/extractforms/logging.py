@@ -29,7 +29,7 @@ def _rename_event_key(
         event_dict: The original event dictionary.
 
     Returns:
-        The modified event dictionary with "message" key instead of "event".
+        EventDict: Modified event dictionary with "message" key instead of "event".
     """
     if "event" in event_dict:
         event_dict["message"] = event_dict.pop("event")
@@ -37,7 +37,12 @@ def _rename_event_key(
 
 
 def configure_logging(*, settings: Settings | None = None, force: bool = False) -> None:
-    """Configure structlog and stdlib logging once for the package."""
+    """Configure structlog and stdlib logging once for the package.
+
+    Args:
+        settings: Optional runtime settings.
+        force: Reconfigure logging even if already configured.
+    """
     global _LOGGING_CONFIGURED  # noqa: PLW0603
 
     if _LOGGING_CONFIGURED and not force:
@@ -78,7 +83,14 @@ def configure_logging(*, settings: Settings | None = None, force: bool = False) 
 
 
 def get_logger(name: str = "extractforms") -> structlog.BoundLogger:
-    """Return package logger, configuring logging lazily."""
+    """Return package logger, configuring logging lazily.
+
+    Args:
+        name: Logger name.
+
+    Returns:
+        structlog.BoundLogger: Configured logger.
+    """
     if not _LOGGING_CONFIGURED:
         configure_logging()
     return structlog.get_logger(name)
