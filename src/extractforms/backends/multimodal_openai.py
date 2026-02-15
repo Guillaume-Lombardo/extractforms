@@ -84,8 +84,14 @@ class MultimodalLLMBackend:
                 response = client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
-        except Exception as exc:
-            raise BackendError(message="Chat completion request failed") from exc
+        except httpx.HTTPStatusError as exc:
+            raise BackendError(
+                message=f"Chat completion request failed with status {exc.response.status_code}",
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise BackendError(message="Chat completion request timed out") from exc
+        except httpx.RequestError as exc:
+            raise BackendError(message=f"Chat completion request failed: {exc}") from exc
 
         usage = data.get("usage", {})
         pricing = PricingCall(

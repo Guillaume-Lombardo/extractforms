@@ -64,7 +64,7 @@
   - `src/extractforms/models.py`
   - `src/extractforms/pdf_render.py`
   - `src/extractforms/schema_store.py`
-  - `src/extractforms/backends/base.py`
+  - `src/extractforms/backends/protocol.py`
   - `src/extractforms/backends/multimodal_openai.py`
   - `src/extractforms/backends/ocr_document_intelligence.py` (stub in MVP)
   - `src/extractforms/prompts.py`
@@ -88,9 +88,19 @@
   - `verify=ssl_context`
   - `limits=Limits(max_connections=...)`
 - Logging:
-  - JSON logging format (stdlib logging)
+  - structlog JSON default
   - optional human-readable rendering
   - controlled configuration for noisy libraries (`httpx`, etc.)
+
+## PR Governance
+
+- Every delivery must go through a PR with CI and Copilot review requested.
+- Poll CI and review status every 60 seconds until results are available.
+- Apply pertinent review feedback before merge; if feedback is not pertinent, record a short technical rationale in PR discussion.
+- Respect engineering and architecture guardrails from:
+  - `docs/engineering/DEFINITION_OF_DONE.md`
+  - `docs/engineering/REVIEW_RUNBOOK.md`
+  - `docs/adr/README.md`
 
 ## Iterative Roadmap
 

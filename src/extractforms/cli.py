@@ -131,8 +131,16 @@ def main() -> int:
     except PackageError:
         logger.exception("Extraction failed")
         return 1
+    except KeyboardInterrupt:
+        logger.info("Extraction aborted by user")
+        return 130
+    except Exception:
+        logger.exception("Unexpected error during extraction")
+        return 1
 
-    output_path = request.output_path or Path("results/result.json")
+    output_path = request.output_path
+    if output_path is None:
+        output_path = Path("results/result.json")
     persist_result(result, output_path)
     logger.info("Extraction completed", extra={"output_path": str(output_path)})
     return 0

@@ -21,6 +21,9 @@ class _FakePage:
 
 
 class _FakeDoc:
+    def __init__(self, pages: int = 1) -> None:
+        self._pages = pages
+
     def __enter__(self):
         return self
 
@@ -28,10 +31,10 @@ class _FakeDoc:
         return None
 
     def __len__(self) -> int:
-        return 1
+        return self._pages
 
     def load_page(self, idx: int) -> _FakePage:
-        assert idx == 0
+        assert 0 <= idx < self._pages
         return _FakePage()
 
 
@@ -40,6 +43,13 @@ class _FakeFitzModule:
     def open(path: Path) -> _FakeDoc:
         assert path.name == "doc.pdf"
         return _FakeDoc()
+
+
+class _FakeFitzThreePages:
+    @staticmethod
+    def open(path: Path) -> _FakeDoc:
+        assert path.name == "doc.pdf"
+        return _FakeDoc(pages=3)
 
 
 def test_render_pdf_pages_rejects_unknown_image_format(tmp_path: Path) -> None:
@@ -59,3 +69,13 @@ def test_render_pdf_pages_with_fake_fitz(monkeypatch, tmp_path: Path) -> None:
 
     assert len(pages) == 1
     assert pages[0].mime_type == "image/png"
+
+
+def test_render_pdf_pages_includes_page_end_upper_bound(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"pdf")
+
+    monkeypatch.setattr("extractforms.pdf_render.fitz", _FakeFitzThreePages)
+    pages = render_pdf_pages(pdf, dpi=120, image_format="png", page_end=3)
+
+    assert [page.page_number for page in pages] == [1, 2, 3]

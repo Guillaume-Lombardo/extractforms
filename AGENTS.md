@@ -76,11 +76,18 @@ This template includes AI delivery tooling:
 - Do not develop features directly on the main branch.
 - End every run, phase, and feature delivery with a GitHub Pull Request.
 - Use PR review and CI as mandatory validation before merge.
+- For every created PR, wait for CI and Copilot review results before finalizing.
+- Poll PR status every 60 seconds (`gh pr checks` + `gh pr view ...reviews/comments`) until results are available.
+- Evaluate review comments for technical relevance; address pertinent comments in code/tests/docs and explicitly justify non-pertinent comments in the PR discussion.
 - Before each push/PR, run one explicit dead-code pass and remove unused code/paths/imports no longer referenced.
 - Before every push/PR, ensure docs/config bootstrap are synchronized with code changes:
   - update `README.md` when CLI behavior, setup, or workflow changes
   - update `.env.template` when environment variables change
   - update local `.env` accordingly for validation runs
+- Before implementation and before merge, review and respect engineering guidance in:
+  - `docs/engineering/DEFINITION_OF_DONE.md`
+  - `docs/engineering/REVIEW_RUNBOOK.md`
+  - `docs/adr/README.md`
 
 ## Pre-PR Checklist
 

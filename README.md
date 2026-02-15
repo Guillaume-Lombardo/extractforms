@@ -36,11 +36,11 @@ Copy `.env.template` to `.env` and configure:
 
 ## Project Layout
 
-- `/Users/g1lom/Documents/extractforms/src/extractforms`: package code
-- `/Users/g1lom/Documents/extractforms/tests/unit`: fast default tests
-- `/Users/g1lom/Documents/extractforms/tests/integration`: component-level tests
-- `/Users/g1lom/Documents/extractforms/tests/end2end`: user-facing behavior tests
-- `/Users/g1lom/Documents/extractforms/skills`: AI helper skills for coding workflows
+- `src/extractforms`: package code
+- `tests/unit`: fast default tests
+- `tests/integration`: component-level tests
+- `tests/end2end`: user-facing behavior tests
+- `skills`: AI helper skills for coding workflows
 
 ## Release
 

@@ -23,6 +23,9 @@ Deliver high-quality, maintainable increments for a Python package and its CLI/A
 - Prefer small, testable increments aligned with `plan.md` phases.
 - Keep docs, skills, and plan synchronized with implementation.
 - Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
+- For each PR, monitor CI and Copilot review by polling every 60 seconds until results are available.
+- Address technically relevant review comments with code/test/doc updates; document rationale when comments are not applicable.
+- Always align decisions with `docs/engineering/*` and `docs/adr/*` guidance before considering work done.
 
 ## Extraction Strategy Guardrails
 

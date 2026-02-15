@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -57,7 +58,9 @@ class SchemaStore(BaseModel):
         Returns:
             Path: Cache path.
         """
-        safe_name = schema_name.replace(" ", "-").lower()
+        safe_name = re.sub(r"[^a-z0-9._-]+", "-", schema_name.lower()).strip("-")
+        if not safe_name:
+            safe_name = "schema"
         return self.root / f"{safe_name}-{schema_id}-{fingerprint}.schema.json"
 
     def load(self, path: Path) -> SchemaSpec:

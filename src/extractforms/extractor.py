@@ -210,19 +210,44 @@ def extract_one_pass(
     return result_with_pricing, merged_pricing
 
 
-def match_schema(pdf: Path, schemas_store: SchemaStore, settings: Settings) -> MatchResult:  # noqa: ARG001
+def match_schema(pdf: Path, schemas_store: SchemaStore, _settings: Settings) -> MatchResult:
     """Match document against schema cache.
 
     Args:
         pdf: PDF to match.
         schemas_store: Schema storage.
-        settings: Runtime settings.
+        _settings: Runtime settings (currently unused; reserved for future matching configuration).
 
     Returns:
         MatchResult: Match payload.
     """
     fingerprint = SchemaStore.fingerprint_pdf(pdf)
     return schemas_store.match_schema(fingerprint)
+
+
+def _extract_for_schema_id(
+    store: SchemaStore,
+    schema_id: str,
+    request: ExtractRequest,
+    settings: Settings,
+) -> ExtractionResult | None:
+    """Load and extract values for a schema id if found.
+
+    Args:
+        store: Schema store.
+        schema_id: Candidate schema id.
+        request: Extraction request.
+        settings: Runtime settings.
+
+    Returns:
+        ExtractionResult | None: Extraction result when found, otherwise None.
+    """
+    for schema_path in store.list_schemas():
+        candidate = store.load(schema_path)
+        if candidate.id == schema_id:
+            result, _ = extract_values(candidate, request, settings)
+            return result
+    return None
 
 
 def persist_result(result: ExtractionResult, path: Path) -> None:
@@ -264,33 +289,20 @@ def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult
         if not request.schema_id:
             raise ExtractionError(message="ONE_SCHEMA_PASS requires --schema-id or --schema-path")
 
-        for schema_path in store.list_schemas():
-            candidate = store.load(schema_path)
-            if candidate.id == request.schema_id:
-                result, _ = extract_values(candidate, request, settings)
-                return result
+        result = _extract_for_schema_id(store, request.schema_id, request, settings)
+        if result is not None:
+            return result
         raise ExtractionError(message=f"Schema id not found: {request.schema_id}")
 
     if request.mode == PassMode.TWO_PASS:
         fingerprint = SchemaStore.fingerprint_pdf(request.input_path)
 
-        if request.match_schema:
-            match = store.match_schema(fingerprint)
-            if match.matched and match.schema_id:
-                for schema_path in store.list_schemas():
-                    candidate = store.load(schema_path)
-                    if candidate.id == match.schema_id:
-                        result, _ = extract_values(candidate, request, settings)
-                        return result
-
-        if request.use_cache:
+        if request.match_schema or request.use_cache:
             matched = store.match_schema(fingerprint)
             if matched.matched and matched.schema_id:
-                for schema_path in store.list_schemas():
-                    candidate = store.load(schema_path)
-                    if candidate.id == matched.schema_id:
-                        result, _ = extract_values(candidate, request, settings)
-                        return result
+                result = _extract_for_schema_id(store, matched.schema_id, request, settings)
+                if result is not None:
+                    return result
 
         schema, _ = infer_schema(request, settings)
         if request.use_cache:

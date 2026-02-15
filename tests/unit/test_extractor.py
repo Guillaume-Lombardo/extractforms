@@ -205,3 +205,48 @@ def test_run_extract_two_pass_infers_and_saves(monkeypatch, tmp_path: Path) -> N
 
     result = run_extract(_request(pdf, PassMode.TWO_PASS), Settings(schema_cache_dir=str(tmp_path)))
     assert result.schema_fields_count == 1
+
+
+def test_run_extract_with_schema_path(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    schema_path = tmp_path / "schema.json"
+    pdf.write_bytes(b"doc")
+    schema_path.write_text("{}", encoding="utf-8")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[SchemaField(key="a", label="A")],
+    )
+
+    request = ExtractRequest(
+        input_path=pdf,
+        output_path=tmp_path / "result.json",
+        schema_path=schema_path,
+    )
+
+    class _Store:
+        def __init__(self, root: Path) -> None:
+            self.root = root
+
+        def load(self, path: Path) -> SchemaSpec:
+            assert path == schema_path
+            return schema
+
+    monkeypatch.setattr("extractforms.extractor.SchemaStore", _Store)
+    monkeypatch.setattr(
+        "extractforms.extractor.extract_values",
+        lambda schema_obj, req, settings: (
+            ExtractionResult(
+                fields=[FieldValue(key="a", value="v", confidence=ConfidenceLevel.HIGH)],
+                flat={"a": "v"},
+                schema_fields_count=1,
+                pricing=None,
+            ),
+            None,
+        ),
+    )
+
+    result = run_extract(request, Settings(schema_cache_dir=str(tmp_path)))
+    assert result.flat["a"] == "v"

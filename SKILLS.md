@@ -34,3 +34,8 @@ This file maps project delivery skills to the `extractforms` roadmap and clarifi
 - Prefer the smallest skill set that fully covers the task.
 - Keep artifacts in English by default (French as complementary only if needed).
 - Update this file if new project-local skills are added or if roadmap ownership changes significantly.
+- Before implementation/review completion, read and apply:
+  - `/Users/g1lom/Documents/extractforms/docs/engineering/DEFINITION_OF_DONE.md`
+  - `/Users/g1lom/Documents/extractforms/docs/engineering/REVIEW_RUNBOOK.md`
+  - `/Users/g1lom/Documents/extractforms/docs/adr/README.md`
+- For every PR, poll CI and Copilot review status every 60 seconds and act on relevant findings.
