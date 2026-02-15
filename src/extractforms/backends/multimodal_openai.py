@@ -70,7 +70,10 @@ class MultimodalLLMBackend:
         if httpx is None:
             raise BackendError(message="httpx is required for multimodal backend")
 
-        kwargs = build_httpx_client_kwargs(self._settings)
+        kwargs = build_httpx_client_kwargs(
+            self._settings,
+            target_url=self._settings.openai_base_url,
+        )
         kwargs["limits"] = httpx.Limits(max_connections=self._settings.max_connections)
 
         url = f"{self._settings.openai_base_url.rstrip('/')}/chat/completions"

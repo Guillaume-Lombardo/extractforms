@@ -5,6 +5,7 @@ from __future__ import annotations
 import ssl
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -61,11 +62,66 @@ def build_ssl_context(settings: Settings) -> ssl.SSLContext:
     return ssl_context
 
 
-def build_httpx_client_kwargs(settings: Settings) -> dict[str, Any]:
+def _normalize_no_proxy_entry(raw_entry: str) -> str:
+    """Normalize one NO_PROXY entry for hostname matching.
+
+    Args:
+        raw_entry: Raw NO_PROXY entry.
+
+    Returns:
+        str: Normalized hostname pattern.
+    """
+    entry = raw_entry.lower()
+    if "://" in entry:
+        entry = (urlparse(entry).hostname or "").lower()
+    return entry.strip("[]").removeprefix(".")
+
+
+def _is_no_proxy_target(target_url: str | None, no_proxy: str | None) -> bool:
+    """Return whether the target URL should bypass proxies.
+
+    Args:
+        target_url: Target request URL.
+        no_proxy: Comma-separated no-proxy entries.
+
+    Returns:
+        bool: True when proxy must be bypassed.
+    """
+    if not target_url or not no_proxy:
+        return False
+
+    parsed = urlparse(target_url)
+    hostname = parsed.hostname
+    if not hostname:
+        return False
+
+    host = hostname.lower().strip("[]")
+    for raw_entry in (entry.strip() for entry in no_proxy.split(",")):
+        if not raw_entry:
+            continue
+        if raw_entry == "*":
+            return True
+
+        entry = _normalize_no_proxy_entry(raw_entry)
+        if not entry:
+            continue
+
+        if host == entry or host.endswith(f".{entry}"):
+            return True
+
+    return False
+
+
+def build_httpx_client_kwargs(
+    settings: Settings,
+    *,
+    target_url: str | None = None,
+) -> dict[str, Any]:
     """Build kwargs used for `httpx.Client` and `httpx.AsyncClient`.
 
     Args:
         settings: Runtime settings.
+        target_url: Optional target URL used for NO_PROXY evaluation.
 
     Returns:
         dict[str, Any]: Arguments for client constructors.
@@ -77,7 +133,7 @@ def build_httpx_client_kwargs(settings: Settings) -> dict[str, Any]:
         "timeout": settings.timeout,
     }
 
-    if proxy_url:
+    if proxy_url and not _is_no_proxy_target(target_url, settings.no_proxy):
         # `proxy` is accepted in modern httpx versions.
         kwargs["proxy"] = proxy_url
 
