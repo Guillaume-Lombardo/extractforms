@@ -14,7 +14,7 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 
 from extractforms.exceptions import BackendError
 from extractforms.logging import get_logger
-from extractforms.models import RenderedPage
+from extractforms.typing.models import RenderedPage
 
 logger = get_logger(__name__)
 

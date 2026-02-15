@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from extractforms.exceptions import BackendError
-from extractforms.models import FieldValue, PricingCall, RenderedPage, SchemaSpec
+from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaSpec
 
 
 class OCRBackend:

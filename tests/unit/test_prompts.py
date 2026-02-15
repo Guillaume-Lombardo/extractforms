@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from extractforms.models import SchemaField, SchemaSpec
+from extractforms.typing.models import SchemaField, SchemaSpec
 from extractforms.prompts import (
     build_schema_inference_prompt,
     build_values_extraction_prompt,

@@ -12,6 +12,9 @@ Guarantee correctness and regression safety across all test scopes.
 - `tests/unit`: default fast scope.
 - `tests/integration`: component and backend interactions.
 - `tests/end2end`: full pipeline and CLI journeys.
+- `tests/unit` must mirror the package layout under `src/extractforms`:
+  - example: `src/extractforms/foo/bar.py` -> `tests/unit/foo/test_bar.py`
+  - keep tests close to the corresponding module boundary to simplify maintenance and review.
 
 Markers are auto-assigned by directory in `tests/conftest.py`.
 
@@ -32,3 +35,4 @@ Markers are auto-assigned by directory in `tests/conftest.py`.
 - Keep unit tests free of hidden external dependencies.
 - Add offline/network-dependent scenarios when relevant.
 - Add representative fixtures for each supported document type.
+- When adding or moving unit tests, preserve the mirrored `src/extractforms` directory structure.

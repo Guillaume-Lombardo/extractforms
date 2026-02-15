@@ -7,12 +7,12 @@ from pathlib import Path
 
 from extractforms import __version__
 from extractforms.dependencies import ensure_cli_dependencies_for_extract
-from extractforms.enums import PassMode
 from extractforms.exceptions import PackageError
 from extractforms.extractor import persist_result, run_extract
 from extractforms.logging import configure_logging, get_logger
-from extractforms.models import ExtractRequest
 from extractforms.settings import get_settings
+from extractforms.typing.enums import PassMode
+from extractforms.typing.models import ExtractRequest
 
 logger = get_logger(__name__)
 

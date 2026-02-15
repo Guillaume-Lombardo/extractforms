@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from extractforms.enums import ConfidenceLevel, FieldKind, PassMode
+from extractforms.typing.enums import ConfidenceLevel, FieldKind, PassMode
 
 
 class SchemaField(BaseModel):

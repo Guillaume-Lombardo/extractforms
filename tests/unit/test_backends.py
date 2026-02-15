@@ -5,7 +5,7 @@ import pytest
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
 from extractforms.backends.ocr_document_intelligence import OCRBackend
 from extractforms.exceptions import BackendError
-from extractforms.models import RenderedPage
+from extractforms.typing.models import RenderedPage
 from extractforms.settings import Settings
 
 

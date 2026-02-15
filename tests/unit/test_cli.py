@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from extractforms import cli
-from extractforms.enums import PassMode
+from extractforms.typing.enums import PassMode
 from extractforms.settings import Settings
 
 

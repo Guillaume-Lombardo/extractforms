@@ -11,7 +11,7 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from extractforms.logging import get_logger
-from extractforms.models import MatchResult, SchemaField, SchemaSpec
+from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 
 logger = get_logger(__name__)
 

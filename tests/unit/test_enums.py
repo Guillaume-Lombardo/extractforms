@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from extractforms.enums import ConfidenceLevel
+from extractforms.typing.enums import ConfidenceLevel
 
 
 def test_confidence_level_from_str() -> None:

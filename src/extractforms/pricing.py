@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from extractforms.models import PricingCall
+from extractforms.typing.models import PricingCall
 
 
 def merge_pricing_calls(calls: list[PricingCall]) -> PricingCall | None:

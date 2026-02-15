@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from extractforms.models import PricingCall
+from extractforms.typing.models import PricingCall
 from extractforms.pricing import merge_pricing_calls
 
 

@@ -15,13 +15,13 @@ from pydantic import BaseModel, ConfigDict
 
 from extractforms.exceptions import BackendError
 from extractforms.logging import get_logger
-from extractforms.models import FieldValue, PricingCall, RenderedPage, SchemaField, SchemaSpec
 from extractforms.prompts import (
     build_schema_inference_prompt,
     build_values_extraction_prompt,
     schema_response_format,
 )
 from extractforms.settings import Settings, build_httpx_client_kwargs
+from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaField, SchemaSpec
 
 logger = get_logger(__name__)
 

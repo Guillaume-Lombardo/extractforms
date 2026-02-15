@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from extractforms.models import SanitizedJsonSchema, SchemaSpec
+from extractforms.typing.models import SanitizedJsonSchema, SchemaSpec
 
 
 def sanitize_json_schema(schema: dict[str, Any]) -> dict[str, Any]:

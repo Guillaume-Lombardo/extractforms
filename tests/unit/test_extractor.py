@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from extractforms.enums import ConfidenceLevel, PassMode
+from extractforms.typing.enums import ConfidenceLevel, PassMode
 from extractforms.extractor import extract_values, persist_result, result_to_json_dict, run_extract
-from extractforms.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
+from extractforms.typing.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
 from extractforms.settings import Settings
 
 

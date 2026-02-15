@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from extractforms.models import MatchResult, SchemaField, SchemaSpec
+from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 from extractforms.schema_store import SchemaStore, build_schema_with_generated_id
 
 
