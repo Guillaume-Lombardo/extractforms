@@ -2,165 +2,161 @@
 
 ## Product
 
-`extractforms` (Python package, module namespace `extractforms`): reusable key/value extraction from form-like PDFs.
+- [x] `extractforms` (Python package, module namespace `extractforms`): reusable key/value extraction from form-like PDFs.
 
 ## Goals
 
-- Provide stable extraction of form fields with strict structured outputs.
-- Support enterprise environments (proxy, internal TLS CA, configurable httpx clients).
-- Expose a clear CLI and stable Python API.
-- Prepare backend abstraction for multimodal and OCR strategies.
+- [x] Provide stable extraction of form fields with strict structured outputs.
+- [x] Support enterprise environments (proxy, internal TLS CA, configurable httpx clients).
+- [x] Expose a clear CLI and stable Python API.
+- [x] Prepare backend abstraction for multimodal and OCR strategies.
 
 ## Scope Baseline
 
-- Primary extraction backend: multimodal LLM via OpenAI-compatible `chat.completions` (LiteLLM proxy path).
-- Complementary path: OCR backend interface, MVP stub in first phase.
-- Extraction modes:
-  - `PassMode.ONE_PASS`
-  - `PassMode.TWO_PASS` (recommended default)
-  - `PassMode.ONE_SCHEMA_PASS`
-- PDF input rendered to images (PyMuPDF/fitz), configurable DPI/format.
-- Strict structured JSON output using `response_format=json_schema` plus sanitizer.
-- Schema caching by stable fingerprint (`sha256(pdf)`), with `--no-cache` override.
+- [x] Primary extraction backend: multimodal LLM via OpenAI-compatible `chat.completions` (LiteLLM proxy path).
+- [x] Complementary path: OCR backend interface, MVP stub in first phase.
+- [x] Extraction mode: `PassMode.ONE_PASS`.
+- [x] Extraction mode: `PassMode.TWO_PASS` (recommended default).
+- [x] Extraction mode: `PassMode.ONE_SCHEMA_PASS`.
+- [x] PDF input rendered to images (PyMuPDF/fitz), configurable DPI/format.
+- [x] Strict structured JSON output using `response_format=json_schema` plus sanitizer.
+- [x] Schema caching by stable fingerprint (`sha256(pdf)`), with `--no-cache` override.
 
 ## Target CLI (MVP+)
 
-- `extractforms extract --input <pdf> [--output <json>] [--passes 1|2] [--no-cache]`
-- Extra flags:
-  - `--dpi`, `--image-format`, `--page-start`, `--page-end`, `--max-pages`
-  - `--chunk-pages`
-  - `--extra-instructions`
-  - `--schema-id`, `--schema-path`
-  - `--match-schema`
+- [x] `extractforms extract --input <pdf> [--output <json>] [--passes 1|2] [--no-cache]`.
+- [x] Flag `--dpi`.
+- [x] Flag `--image-format`.
+- [x] Flag `--page-start`.
+- [x] Flag `--page-end`.
+- [x] Flag `--max-pages`.
+- [x] Flag `--chunk-pages`.
+- [x] Flag `--extra-instructions`.
+- [x] Flag `--schema-id`.
+- [x] Flag `--schema-path`.
+- [x] Flag `--match-schema`.
 
 ## Target Python API (stable)
 
-- `infer_schema(request, settings) -> tuple[SchemaSpec, PricingCall | None]`
-- `extract_values(schema, request, settings) -> tuple[ExtractionResult, PricingCall | None]`
-- `extract_one_pass(request, settings) -> tuple[ExtractionResult, PricingCall | None]`
-- `match_schema(pdf, schemas_store, settings) -> MatchResult`
-- `persist_result(result, path) -> None`
+- [x] `infer_schema(request, settings) -> tuple[SchemaSpec, PricingCall | None]`.
+- [x] `extract_values(schema, request, settings) -> tuple[ExtractionResult, PricingCall | None]`.
+- [x] `extract_one_pass(request, settings) -> tuple[ExtractionResult, PricingCall | None]`.
+- [x] `match_schema(pdf, schemas_store, settings) -> MatchResult`.
+- [x] `persist_result(result, path) -> None`.
 
 ## Data Contracts
 
-- `SchemaSpec`: `id`, `name`, `fingerprint`, `fields[]`.
-- `SchemaField`: `key`, `label`, `page`, `kind`, optional validation/type metadata.
-- `ExtractionResult`:
-  - `fields`: `{key, value, page, confidence}`[]
-  - `flat`: `dict[str, str]`
-  - `schema_fields_count`
-  - `pricing`
-- `ExtractRequest`: input/output/mode/cache/render/chunking/instructions.
-- Null sentinel for missing values: default `"NULL"`.
+- [x] `SchemaSpec`: `id`, `name`, `fingerprint`, `fields[]`.
+- [x] `SchemaField`: `key`, `label`, `page`, `kind`, optional validation/type metadata.
+- [x] `ExtractionResult.fields`: `{key, value, page, confidence}`[].
+- [x] `ExtractionResult.flat`: `dict[str, str]`.
+- [x] `ExtractionResult.schema_fields_count`.
+- [x] `ExtractionResult.pricing`.
+- [x] `ExtractRequest`: input/output/mode/cache/render/chunking/instructions.
+- [x] Null sentinel for missing values: default `"NULL"`.
 
 ## Architecture Plan
 
-- Package layout target:
-  - `src/extractforms/__init__.py`
-  - `src/extractforms/settings.py`
-  - `src/extractforms/logging.py`
-  - `src/extractforms/cli.py`
-  - `src/extractforms/enums.py`
-  - `src/extractforms/models.py`
-  - `src/extractforms/pdf_render.py`
-  - `src/extractforms/schema_store.py`
-  - `src/extractforms/backends/protocol.py`
-  - `src/extractforms/backends/multimodal_openai.py`
-  - `src/extractforms/backends/ocr_document_intelligence.py` (stub in MVP)
-  - `src/extractforms/prompts.py`
-  - `src/extractforms/extractor.py`
-  - `src/extractforms/pricing.py`
-- Interface boundaries:
-  - `PageSource`: `render_images()`, `ocr_pages()`
-  - `ExtractorBackend`: `infer_schema(pages)`, `extract_values(pages, keys)`
+- [x] Package layout includes:
+- [x] `src/extractforms/__init__.py`
+- [x] `src/extractforms/_bootstrap.py`
+- [x] `src/extractforms/settings.py`
+- [x] `src/extractforms/logging.py`
+- [x] `src/extractforms/cli.py`
+- [x] `src/extractforms/pdf_render.py`
+- [x] `src/extractforms/schema_store.py`
+- [x] `src/extractforms/backends/protocol.py`
+- [x] `src/extractforms/backends/multimodal_openai.py`
+- [x] `src/extractforms/backends/ocr_document_intelligence.py` (stub)
+- [x] `src/extractforms/prompts.py`
+- [x] `src/extractforms/extractor.py`
+- [x] `src/extractforms/pricing.py`
+- [x] `src/extractforms/typing/enums.py`
+- [x] `src/extractforms/typing/models.py`
+- [x] `src/extractforms/typing/protocol.py`
+- [x] Interface boundary `PageSource`: `render_images()`, `ocr_pages()`.
+- [x] Interface boundary `ExtractorBackend`: `infer_schema(pages)`, `extract_values(pages, keys)`.
 
 ## Enterprise Runtime Plan
 
-- Settings contract via env + optional `.env`:
-  - proxies: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`
-  - TLS/network: `CERT_PATH`, `TIMEOUT`, `MAX_CONNECTIONS`
-- Build `SSLContext` with:
-  - `create_default_context(cafile=...)`
-  - `CERT_REQUIRED`
-  - minimum `TLSv1_2`
-- Build `httpx.Client`/`AsyncClient` with:
-  - proxy configuration compatible with selected httpx version
-  - `verify=ssl_context`
-  - `limits=Limits(max_connections=...)`
-- Logging:
-  - structlog JSON default
-  - optional human-readable rendering
-  - controlled configuration for noisy libraries (`httpx`, etc.)
+- [x] Settings contract via env + optional `.env`.
+- [x] Proxies: `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`.
+- [x] TLS/network: `CERT_PATH`, `TIMEOUT`, `MAX_CONNECTIONS`.
+- [x] `SSLContext` uses `create_default_context(cafile=...)`.
+- [x] `SSLContext` uses `CERT_REQUIRED`.
+- [x] `SSLContext` enforces minimum `TLSv1_2`.
+- [x] `httpx` clients get proxy configuration compatible with the selected httpx version.
+- [x] `httpx` clients use `verify=ssl_context`.
+- [x] `httpx` clients use `limits=Limits(max_connections=...)`.
+- [x] Logging defaults to structlog JSON.
+- [x] Optional human-readable log rendering.
+- [x] Noisy-library log levels can be controlled (`httpx`, etc.).
 
 ## PR Governance
 
-- Every delivery must go through a PR with CI and Copilot review requested.
-- Poll CI and review status every 60 seconds until results are available.
-- Apply pertinent review feedback before merge; if feedback is not pertinent, record a short technical rationale in PR discussion.
-- Respect engineering and architecture guardrails from:
-  - `docs/engineering/DEFINITION_OF_DONE.md`
-  - `docs/engineering/REVIEW_RUNBOOK.md`
-  - `docs/adr/README.md`
+- [x] Every delivery must go through a PR with CI and Copilot review requested.
+- [x] Poll CI and review status every 60 seconds until results are available.
+- [x] Apply pertinent review feedback before merge.
+- [x] If feedback is not pertinent, record a short technical rationale in PR discussion.
+- [x] Respect guardrails from `docs/engineering/DEFINITION_OF_DONE.md`.
+- [x] Respect guardrails from `docs/engineering/REVIEW_RUNBOOK.md`.
+- [x] Respect guardrails from `docs/adr/README.md`.
 
 ## Iterative Roadmap
 
 ### S1 (MVP)
 
-- Implement one-pass and two-pass multimodal extraction flows.
-- Add strict response schema handling and sanitization.
-- Add schema cache persistence by fingerprint.
-- Deliver `extract` CLI and stable API surface.
-- Implement enterprise network/TLS settings and httpx client factory.
-- Add core unit tests (models/prompts/fingerprint/render/pricing/settings).
+- [x] Implement one-pass and two-pass multimodal extraction flows.
+- [x] Add strict response schema handling and sanitization.
+- [x] Add schema cache persistence by fingerprint.
+- [x] Deliver `extract` CLI and stable API surface.
+- [x] Implement enterprise network/TLS settings and httpx client factory.
+- [x] Add core unit tests (models/prompts/fingerprint/render/pricing/settings).
 
 ### S2
 
-- Implement page-by-page value extraction using `SchemaField.page`.
-- Add fallback key-to-page mapping when page metadata is sparse.
-- Implement simple schema matching (heuristics + metadata index).
-- Support extraction batching (`--chunk-pages`) for larger documents.
+- [x] Implement page-by-page value extraction using `SchemaField.page`.
+- [ ] Add fallback key-to-page mapping when page metadata is sparse.
+- [x] Implement simple schema matching (heuristics + metadata index).
+- [x] Support extraction batching (`--chunk-pages`) for larger documents.
 
 ### S3
 
-- Implement OCR backend (Document Intelligence integration path).
-- Add OCR-to-field reconstruction and optional text-only LLM normalization.
-- Harden pricing/finops and extraction metrics.
-- Add schema lifecycle management improvements (versioning/migrations).
+- [ ] Implement OCR backend (Document Intelligence integration path).
+- [ ] Add OCR-to-field reconstruction and optional text-only LLM normalization.
+- [ ] Harden pricing/finops and extraction metrics.
+- [ ] Add schema lifecycle management improvements (versioning/migrations).
 
 ## Acceptance Criteria (MVP)
 
-- `extractforms extract --passes 2` generates:
-  - schema cache file under schema store
-  - result JSON with all schema keys present (no key omission)
-  - missing values populated with sentinel `"NULL"`
-- Extraction works behind proxy with internal CA configuration.
-- Local quality checks pass for MVP scope:
-  - `uv run ruff format .`
-  - `uv run ruff check .`
-  - `uv run ty check src tests`
-  - `uv run pytest -m unit`
+- [x] `extractforms extract --passes 2` generates a schema cache file under schema store.
+- [x] `extractforms extract --passes 2` generates result JSON with all schema keys present (no key omission).
+- [x] Missing values are populated with sentinel `"NULL"`.
+- [x] Extraction works behind proxy with internal CA configuration.
+- [x] Local quality checks pass for MVP scope.
+- [x] `uv run ruff format .`
+- [x] `uv run ruff check .`
+- [x] `uv run ty check src tests`
+- [x] `uv run pytest -m unit`
 
 ## Testing Strategy
 
-- Unit tests:
-  - pydantic models and enum parsing/serialization
-  - prompt builders and schema sanitizer behavior
-  - fingerprint stability and schema cache naming
-  - PDF render orchestration with mocks
-  - pricing aggregation behavior
-- Integration tests:
-  - backend orchestration with mocked LLM responses and strict JSON validation
-  - schema store read/write + matching flow on fixtures
-- End-to-end tests:
-  - sample PDF extraction via CLI
-  - one-pass and two-pass smoke coverage
-  - regression for null sentinel and output contract
+- [x] Unit tests: pydantic models and enum parsing/serialization.
+- [x] Unit tests: prompt builders and schema sanitizer behavior.
+- [x] Unit tests: fingerprint stability and schema cache naming.
+- [x] Unit tests: PDF render orchestration with mocks.
+- [x] Unit tests: pricing aggregation behavior.
+- [x] Integration tests: backend orchestration with mocked LLM responses and strict JSON validation.
+- [x] Integration tests: schema store read/write + matching flow on fixtures.
+- [x] End-to-end tests: sample PDF extraction via CLI.
+- [x] End-to-end tests: one-pass and two-pass smoke coverage.
+- [x] End-to-end tests: regression for null sentinel and output contract.
 
 ## Risks and Mitigations
 
-- Risk: model output drift from strict schema.
-  - Mitigation: sanitizer + strict parse validation + deterministic post-processing.
-- Risk: enterprise proxy/TLS misconfiguration.
-  - Mitigation: explicit settings validation and startup diagnostics.
-- Risk: high token/image cost on long documents.
-  - Mitigation: page chunking, page-targeted extraction, schema cache reuse.
+- [x] Risk: model output drift from strict schema.
+- [x] Mitigation: sanitizer + strict parse validation + deterministic post-processing.
+- [x] Risk: enterprise proxy/TLS misconfiguration.
+- [x] Mitigation: explicit settings validation and startup diagnostics.
+- [x] Risk: high token/image cost on long documents.
+- [x] Mitigation: page chunking, page-targeted extraction, schema cache reuse.

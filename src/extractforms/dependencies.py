@@ -34,10 +34,4 @@ def ensure_cli_dependencies_for_extract() -> None:
         missing.append("httpx")
 
     if missing:
-        packages = ", ".join(sorted(set(missing)))
-        raise DependencyError(
-            message=(
-                f"Missing runtime dependencies for 'extract': {packages}. "
-                "Install project dependencies with: uv sync"
-            ),
-        )
+        raise DependencyError(missing_package=missing, message="extract")

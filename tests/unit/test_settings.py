@@ -53,3 +53,56 @@ def test_build_httpx_client_kwargs_uses_proxy(monkeypatch) -> None:
 
     assert kwargs["timeout"] == settings.timeout
     assert kwargs["proxy"] == "http://proxy.local:8080"
+
+
+def test_build_httpx_client_kwargs_respects_no_proxy(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", ".internal.local,localhost")
+    settings = Settings()
+
+    kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.internal.local/v1/chat/completions",
+    )
+
+    assert kwargs["timeout"] == settings.timeout
+    assert "proxy" not in kwargs
+
+
+def test_build_httpx_client_kwargs_keeps_proxy_when_not_in_no_proxy(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", ".internal.local")
+    settings = Settings()
+
+    kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.external.local/v1/chat/completions",
+    )
+
+    assert kwargs["proxy"] == "http://proxy.local:8080"
+
+
+def test_build_httpx_client_kwargs_respects_no_proxy_with_port(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", "api.internal.local:8443")
+    settings = Settings()
+
+    kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.internal.local/v1/chat/completions",
+    )
+
+    assert "proxy" not in kwargs
+
+
+def test_build_httpx_client_kwargs_respects_no_proxy_wildcard(monkeypatch) -> None:
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.local:8080")
+    monkeypatch.setenv("NO_PROXY", "*")
+    settings = Settings()
+
+    kwargs = build_httpx_client_kwargs(
+        settings,
+        target_url="https://api.anywhere.local/v1/chat/completions",
+    )
+
+    assert "proxy" not in kwargs

@@ -13,8 +13,8 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 
 from pydantic import BaseModel, ConfigDict
 
+from extractforms import logger
 from extractforms.exceptions import BackendError
-from extractforms.logging import get_logger
 from extractforms.prompts import (
     build_schema_inference_prompt,
     build_values_extraction_prompt,
@@ -22,8 +22,6 @@ from extractforms.prompts import (
 )
 from extractforms.settings import Settings, build_httpx_client_kwargs
 from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaField, SchemaSpec
-
-logger = get_logger(__name__)
 
 
 class _SchemaResponse(BaseModel):
@@ -70,7 +68,10 @@ class MultimodalLLMBackend:
         if httpx is None:
             raise BackendError(message="httpx is required for multimodal backend")
 
-        kwargs = build_httpx_client_kwargs(self._settings)
+        kwargs = build_httpx_client_kwargs(
+            self._settings,
+            target_url=self._settings.openai_base_url,
+        )
         kwargs["limits"] = httpx.Limits(max_connections=self._settings.max_connections)
 
         url = f"{self._settings.openai_base_url.rstrip('/')}/chat/completions"

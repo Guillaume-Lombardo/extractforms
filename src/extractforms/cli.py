@@ -5,16 +5,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from extractforms import __version__
+from extractforms import __version__, logger
 from extractforms.dependencies import ensure_cli_dependencies_for_extract
 from extractforms.exceptions import PackageError
 from extractforms.extractor import persist_result, run_extract
-from extractforms.logging import configure_logging, get_logger
+from extractforms.logging import configure_logging
 from extractforms.settings import get_settings
 from extractforms.typing.enums import PassMode
 from extractforms.typing.models import ExtractRequest
-
-logger = get_logger(__name__)
 
 
 def _pass_mode_from_cli(value: str) -> PassMode:

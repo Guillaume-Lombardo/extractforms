@@ -12,13 +12,12 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     fitz = None
 
 from extractforms.exceptions import BackendError
-from extractforms.logging import get_logger
 from extractforms.typing.models import RenderedPage
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-logger = get_logger(__name__)
+from extractforms import logger
 
 _MIME_BY_FORMAT = {
     "png": "image/png",

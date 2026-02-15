@@ -9,7 +9,6 @@ from uuid import uuid4
 
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
 from extractforms.exceptions import ExtractionError
-from extractforms.logging import get_logger
 from extractforms.pdf_render import render_pdf_pages
 from extractforms.pricing import merge_pricing_calls
 from extractforms.schema_store import SchemaStore
@@ -25,8 +24,6 @@ from extractforms.typing.models import (
 
 if TYPE_CHECKING:
     from extractforms.settings import Settings
-
-logger = get_logger(__name__)
 
 
 def _confidence_rank(confidence: ConfidenceLevel) -> int:

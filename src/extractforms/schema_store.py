@@ -5,15 +5,15 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from extractforms.logging import get_logger
+from extractforms import logger
 from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 
-logger = get_logger(__name__)
+_ = Path
 
 
 class SchemaStore(BaseModel):
