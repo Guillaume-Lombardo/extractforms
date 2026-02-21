@@ -191,6 +191,8 @@ class Settings(BaseSettings):
             raise ValueError("OPENAI_BASE_URL must use http or https scheme")  # noqa: TRY003
         if not parsed.hostname:
             raise ValueError("OPENAI_BASE_URL must include a hostname")  # noqa: TRY003
+        if parsed.scheme == "http" and not _is_local_hostname(parsed.hostname):
+            raise ValueError("OPENAI_BASE_URL must use https outside local development")  # noqa: TRY003
         return stripped
 
     def model_post_init(self, __context: object, /) -> None:
@@ -588,3 +590,22 @@ def _is_missing_settings_error(exc: Exception) -> bool:
     if not isinstance(exc, ValidationError):
         return False
     return any(error.get("type") == "missing" for error in exc.errors())
+
+
+def _is_local_hostname(hostname: str) -> bool:
+    """Return whether hostname is local development target.
+
+    Args:
+        hostname (str): Parsed hostname.
+
+    Returns:
+        bool: True when hostname resolves to local loopback names/addresses.
+    """
+    host = hostname.strip("[]").lower()
+    if host in {"localhost", "::1"}:
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback

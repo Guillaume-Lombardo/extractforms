@@ -6,14 +6,15 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from extractforms import logger
+from extractforms.exceptions import SchemaStoreError
 from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 
-_ = Path
 _SCHEMA_FILE_VERSION = 2
 
 
@@ -48,7 +49,13 @@ class SchemaStore(BaseModel):
                 digest.update(chunk)
         return digest.hexdigest()
 
-    def schema_path(self, *, schema_name: str, schema_id: str, fingerprint: str) -> Path:
+    def schema_path(
+        self,
+        *,
+        schema_name: str,
+        schema_id: str,
+        fingerprint: str,
+    ) -> Path:
         """Build schema cache path.
 
         Args:
@@ -74,6 +81,7 @@ class SchemaStore(BaseModel):
         Returns:
             SchemaSpec: Loaded schema.
         """
+        _validate_schema_file_path(path)
         payload = json.loads(path.read_text(encoding="utf-8"))
         migrated = _migrate_schema_payload(payload)
         return SchemaSpec.model_validate(migrated)
@@ -96,7 +104,7 @@ class SchemaStore(BaseModel):
             "schema_file_version": _SCHEMA_FILE_VERSION,
             "schema": schema.model_dump(mode="json"),
         }
-        path.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+        path.write_text(json.dumps(envelope, indent=2, sort_keys=True), encoding="utf-8")
         logger.info("Schema cached", extra={"schema_path": str(path)})
         return path
 
@@ -179,18 +187,26 @@ def build_schema_revision(
     )
 
 
-def _migrate_schema_payload(payload: dict[str, object]) -> dict[str, object]:
+def _migrate_schema_payload(payload: object) -> dict[str, object]:
     """Migrate schema payload from file format versions to current model format.
 
     Args:
-        payload (dict[str, object]): Raw JSON payload.
+        payload (object): Raw JSON payload.
+
+    Raises:
+        SchemaStoreError: If payload is not a JSON object.
 
     Returns:
         dict[str, object]: Migrated schema object payload.
     """
-    schema_object = payload
-    if "schema" in payload and isinstance(payload["schema"], dict):
-        schema_object = payload["schema"]
+    if not isinstance(payload, dict):
+        raise SchemaStoreError(message="Schema payload must be a JSON object")
+
+    payload_obj = cast("dict[str, object]", payload)
+    schema_object = payload_obj
+    embedded_schema = payload_obj.get("schema")
+    if isinstance(embedded_schema, dict):
+        schema_object = cast("dict[str, object]", embedded_schema)
 
     migrated = dict(schema_object)
     if "version" not in migrated:
@@ -199,3 +215,20 @@ def _migrate_schema_payload(payload: dict[str, object]) -> dict[str, object]:
         schema_id = migrated.get("id")
         migrated["schema_family_id"] = schema_id if isinstance(schema_id, str) else None
     return migrated
+
+
+def _validate_schema_file_path(path: Path) -> None:
+    """Validate schema file path before loading.
+
+    Args:
+        path (Path): Schema file path.
+
+    Raises:
+        SchemaStoreError: If path is not a `pathlib.Path` or not a readable schema JSON file.
+    """
+    if not isinstance(path, Path):
+        raise SchemaStoreError(message=f"Schema path must be a pathlib.Path instance, got: {type(path)!r}")
+    if not path.is_file():
+        raise SchemaStoreError(message=f"Schema path is not a file: {path}")
+    if not path.name.endswith(".schema.json"):
+        raise SchemaStoreError(message=f"Schema path must end with '.schema.json': {path}")

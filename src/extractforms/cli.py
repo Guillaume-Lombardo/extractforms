@@ -72,7 +72,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         dest="backend",
     )
-    extract_parser.add_argument("--drop-blank-pages", action="store_true", dest="drop_blank_pages")
+    extract_parser.add_argument(
+        "--drop-blank-pages",
+        action="store_true",
+        default=None,
+        dest="drop_blank_pages",
+    )
     extract_parser.add_argument(
         "--blank-page-ink-threshold",
         type=float,
@@ -119,7 +124,7 @@ def _build_extract_request(args: argparse.Namespace) -> ExtractRequest:
         page_end=args.page_end,
         max_pages=args.max_pages,
         chunk_pages=args.chunk_pages,
-        drop_blank_pages=getattr(args, "drop_blank_pages", False),
+        drop_blank_pages=getattr(args, "drop_blank_pages", None),
         blank_page_ink_threshold=getattr(args, "blank_page_ink_threshold", None),
         blank_page_near_white_level=getattr(args, "blank_page_near_white_level", None),
         schema_id=args.schema_id,

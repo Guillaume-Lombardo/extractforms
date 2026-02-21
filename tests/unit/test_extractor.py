@@ -92,7 +92,7 @@ def test_run_extract_two_pass_with_cached_schema(monkeypatch, tmp_path: Path) ->
             return _Match()
 
         def list_schemas(self):
-            return [pdf.parent / "schema.json"]
+            return [pdf.parent / "schema.schema.json"]
 
         def load(self, path: Path) -> SchemaSpec:
             return schema
@@ -253,7 +253,7 @@ def test_run_extract_two_pass_infers_and_saves(monkeypatch, tmp_path: Path) -> N
 
 def test_run_extract_with_schema_path(monkeypatch, tmp_path: Path) -> None:
     pdf = tmp_path / "doc.pdf"
-    schema_path = tmp_path / "schema.json"
+    schema_path = tmp_path / "schema.schema.json"
     pdf.write_bytes(b"doc")
     schema_path.write_text("{}", encoding="utf-8")
 
@@ -618,7 +618,7 @@ def test_run_extract_two_pass_sets_cache_hit_metadata(monkeypatch, tmp_path: Pat
             return type("Match", (), {"matched": True, "schema_id": "id"})()
 
         def list_schemas(self):
-            return [self.root / "schema.json"]
+            return [self.root / "schema.schema.json"]
 
         def load(self, path: Path) -> SchemaSpec:
             _ = path

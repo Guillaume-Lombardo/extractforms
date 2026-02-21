@@ -18,7 +18,7 @@ def test_build_parser_supports_version_flag(capsys) -> None:
     assert exc_info.value.code == 0
 
     captured = capsys.readouterr()
-    assert "0.1.0" in captured.out
+    assert "0.2.0" in captured.out
 
 
 def test_extract_request_uses_one_schema_mode_when_schema_is_provided() -> None:
