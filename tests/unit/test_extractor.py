@@ -640,3 +640,20 @@ def test_run_extract_two_pass_sets_cache_hit_metadata(monkeypatch, tmp_path: Pat
     )
     result = run_extract(_request(pdf, PassMode.TWO_PASS), Settings(schema_cache_dir=str(tmp_path)))
     assert result.metadata["cache_hit"] is True
+
+
+def test_build_ocr_provider_wraps_factory_errors(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+    request = _request(pdf)
+    settings = Settings()
+    settings.ocr_provider_factory = "pkg.module.factory"
+
+    def _factory(**kwargs: object):
+        _ = kwargs
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("extractforms.extractor._load_dotted_object", lambda _: _factory)
+
+    with pytest.raises(ExtractionError, match="OCR provider factory call failed"):
+        extractor._build_ocr_provider(request=request, settings=settings)

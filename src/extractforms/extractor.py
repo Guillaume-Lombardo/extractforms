@@ -503,12 +503,17 @@ def _build_ocr_provider(*, request: ExtractRequest, settings: Settings) -> OCRPa
     typed_factory = cast("Any", factory)
 
     try:
-        provider = typed_factory(settings=settings, request=request)
-    except TypeError:
         try:
-            provider = typed_factory(settings)
+            provider = typed_factory(settings=settings, request=request)
         except TypeError:
-            provider = typed_factory()
+            try:
+                provider = typed_factory(settings)
+            except TypeError:
+                provider = typed_factory()
+    except Exception as exc:
+        raise ExtractionError(
+            message=f"OCR provider factory call failed: {dotted_path}",
+        ) from exc
     return cast("OCRPageProvider", provider)
 
 

@@ -173,10 +173,8 @@ def _parse_normalized_output(
         output_tokens=usage.get("completion_tokens"),
         total_cost_usd=None,
     )
-    content_text = data["choices"][0]["message"]["content"]
-    parsed = json.loads(content_text)
-    normalized = parsed.get("values")
-    if not isinstance(normalized, dict):
+    normalized = _extract_normalized_values_map(data)
+    if normalized is None:
         return values, pricing
 
     output: dict[str, str] = {}
@@ -184,3 +182,28 @@ def _parse_normalized_output(
         candidate = normalized.get(key, raw)
         output[key] = str(candidate)
     return output, pricing
+
+
+def _extract_normalized_values_map(data: dict[str, Any]) -> dict[str, object] | None:
+    """Extract normalized values map from completion payload.
+
+    Args:
+        data (dict[str, Any]): Completion payload.
+
+    Returns:
+        dict[str, object] | None: Parsed normalized values map, if present.
+    """
+    choices = data.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    first = choices[0]
+    message = first.get("message") if isinstance(first, dict) else None
+    content_text = message.get("content") if isinstance(message, dict) else None
+    if not isinstance(content_text, str):
+        return None
+    try:
+        parsed = json.loads(content_text)
+    except json.JSONDecodeError:
+        return None
+    normalized = parsed.get("values")
+    return normalized if isinstance(normalized, dict) else None
