@@ -127,7 +127,8 @@
 
 ### S3
 
-- [ ] Implement OCR backend (Document Intelligence integration path).
+- [x] Implement OCR backend (Document Intelligence integration path).
+- [ ] Wire OCR backend selection in CLI/API runtime settings.
 - [ ] Add OCR-to-field reconstruction and optional text-only LLM normalization.
 - [ ] Harden pricing/finops and extraction metrics.
 - [ ] Add schema lifecycle management improvements (versioning/migrations).
@@ -158,7 +159,7 @@
 - [x] End-to-end tests: regression for null sentinel and output contract.
 - [x] Unit tests: blank-page detector and page-map heuristics.
 - [x] Integration tests: extraction behavior with interleaved blank pages and schema page routing.
-- [ ] End-to-end tests: typed-field extraction flow (`phone`, `address`, `amount`) with null-sentinel invariants.
+- [x] End-to-end tests: typed-field extraction flow (`phone`, `address`, `amount`) with null-sentinel invariants.
 
 ## Risks and Mitigations
 
