@@ -67,3 +67,19 @@ def test_normalize_email_value() -> None:
     )
 
     assert normalized == "john.doe@example.org"
+
+
+def test_normalize_percentage_value() -> None:
+    schema_field = SchemaField(
+        key="rate",
+        label="Rate",
+        semantic_type=FieldSemanticType.PERCENTAGE,
+    )
+
+    normalized = normalize_typed_value(
+        value="12,5 %",
+        schema_field=schema_field,
+        null_sentinel="NULL",
+    )
+
+    assert normalized == "12.5%"

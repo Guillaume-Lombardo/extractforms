@@ -119,11 +119,11 @@
 - [ ] Add fallback key-to-page mapping when page metadata is sparse.
 - [x] Implement simple schema matching (heuristics + metadata index).
 - [x] Support extraction batching (`--chunk-pages`) for larger documents.
-- [ ] Detect and filter near-blank PDF pages (recto/verso scan artifacts) before extraction.
-- [ ] Build logical-to-physical page mapping so schema page numbers remain reliable when blank pages exist.
-- [ ] Add explicit page markers to multimodal prompts to anchor page numbering in PDF order.
-- [ ] Extend schema typing with richer semantic field types (phone, address, amount, etc.).
-- [ ] Add typed-field normalization hooks (phone, amount, address) and validation-friendly metadata.
+- [x] Detect and filter near-blank PDF pages (recto/verso scan artifacts) before extraction.
+- [x] Build logical-to-physical page mapping so schema page numbers remain reliable when blank pages exist.
+- [x] Add explicit page markers to multimodal prompts to anchor page numbering in PDF order.
+- [x] Extend schema typing with richer semantic field types (phone, address, amount, etc.).
+- [x] Add typed-field normalization hooks (phone, amount, address) and validation-friendly metadata.
 
 ### S3
 
