@@ -67,6 +67,17 @@ class DependencyError(PackageError):
         return f"Missing runtime dependencies for '{self.message}': {', '.join(self.missing_package)}"
 
 
+@dataclass
+class SchemaStoreError(PackageError):
+    """Raised when schema loading/saving constraints are violated."""
+
+    message: str
+
+    def __str__(self) -> str:
+        """Return error message payload."""
+        return self.message
+
+
 @dataclass(frozen=True)
 class ModelMismatchError(PackageError):
     """Raised when the model used for an operation does not match the model of another operation."""

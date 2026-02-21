@@ -17,7 +17,7 @@ def test_typed_fields_extraction_flow_applies_normalization_and_null_sentinel(
 ) -> None:
     pdf = tmp_path / "doc.pdf"
     pdf.write_bytes(b"doc")
-    schema_path = tmp_path / "schema.json"
+    schema_path = tmp_path / "schema.schema.json"
 
     schema = SchemaSpec(
         id="typed-schema",

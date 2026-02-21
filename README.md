@@ -27,7 +27,7 @@ Supported options include:
 - `--backend` (`multimodal` or `ocr`)
 - `--drop-blank-pages`, `--blank-page-ink-threshold`, `--blank-page-near-white-level`
 - `--extra-instructions`
-- `--schema-id`, `--schema-path`, `--match-schema`
+- `--schema-id`, `--schema-path` (expects `*.schema.json`), `--match-schema`
 
 Schema fields support both `kind` and optional `semantic_type` metadata for richer typing
 (for example: phone, address, amount, iban, postal code).
@@ -40,6 +40,10 @@ Copy `.env.template` to `.env` and configure:
 - model endpoint (`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`)
 - backend selection (`EXTRACTION_BACKEND`, `OCR_PROVIDER_FACTORY`, `OCR_ENABLE_TEXT_NORMALIZATION`)
 - extraction behavior (`DROP_BLANK_PAGES`, `BLANK_PAGE_INK_THRESHOLD`, `BLANK_PAGE_NEAR_WHITE_LEVEL`)
+
+Security notes:
+- `OPENAI_BASE_URL` must use `https://` in non-local environments (`http://` is accepted for localhost/loopback only).
+- `--schema-path` accepts only schema cache files with `.schema.json` suffix.
 
 ## Project Layout
 

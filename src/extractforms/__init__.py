@@ -13,7 +13,7 @@ from extractforms.exceptions import (
 from extractforms.logging import configure_logging, get_logger
 from extractforms.settings import Settings, get_settings
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AsyncExecutionError",

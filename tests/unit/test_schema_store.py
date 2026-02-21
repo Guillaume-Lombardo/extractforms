@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 
-from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
+import pytest
+
+from extractforms.exceptions import SchemaStoreError
 from extractforms.schema_store import (
     SchemaStore,
     build_schema_revision,
     build_schema_with_generated_id,
 )
+from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 
 
 def test_fingerprint_pdf_is_stable(tmp_path) -> None:
@@ -97,3 +100,19 @@ def test_build_schema_revision_increments_version_and_family() -> None:
     assert revised.version == 3
     assert revised.schema_family_id == "family-1"
     assert revised.id != previous.id
+
+
+def test_schema_store_load_rejects_non_schema_extension(tmp_path) -> None:
+    path = tmp_path / "schema.json"
+    path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(SchemaStoreError, match=r"must end with '.schema.json'"):
+        SchemaStore.load(path)
+
+
+def test_schema_store_load_rejects_non_object_payload(tmp_path) -> None:
+    path = tmp_path / "schema.schema.json"
+    path.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(SchemaStoreError, match="must be a JSON object"):
+        SchemaStore.load(path)

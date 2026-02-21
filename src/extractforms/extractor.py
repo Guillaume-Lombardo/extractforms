@@ -252,7 +252,7 @@ async def _collect_schema_values(
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
     """
     backend = cast("ExtractorBackend", payload.backend)
-    pages = cast("list[RenderedPage]", payload.pages)
+    pages = payload.pages
 
     keys_by_page = _build_routed_keys_by_page(
         payload.schema_spec,
@@ -368,10 +368,11 @@ def _missing_paged_keys(
     Returns:
         list[str]: Routed keys still missing usable values.
     """
+    null_sentinel = _backend_null_sentinel(backend)
     extracted_non_blank = {
         value.key
         for value in extracted_values
-        if value.value.strip() and value.value.strip() not in {_backend_null_sentinel(backend), "NULL"}
+        if value.value.strip() and value.value.strip() not in {null_sentinel, "NULL"}
     }
     paged_keys = {key for keys in keys_by_page.values() for key in keys}
     return sorted(paged_keys - extracted_non_blank)
@@ -643,7 +644,6 @@ def _infer_sparse_keys_by_page(
         mapped_page = page_map.get(field.page, field.page) if page_map is not None else field.page
         anchored_positions.append((index, mapped_page))
 
-    unresolved: list[str] = []
     inferred_by_page: dict[int, list[str]] = {}
     if not anchored_positions:
         return inferred_by_page, [field.key for field in schema.fields if field.page is None]
@@ -659,7 +659,7 @@ def _infer_sparse_keys_by_page(
         _ = nearest_index
         inferred_by_page.setdefault(nearest_page, []).append(field.key)
 
-    return inferred_by_page, unresolved
+    return inferred_by_page, []
 
 
 def extract_values(
@@ -850,44 +850,24 @@ def match_schema(pdf: Path, schemas_store: SchemaStore, _settings: Settings) -> 
     return schemas_store.match_schema(fingerprint)
 
 
-def _extract_for_schema_id(
+def _load_schema_by_id(
     store: SchemaStore,
     schema_id: str,
-    request: ExtractRequest,
-    settings: Settings,
-) -> ExtractionResult | None:
-    """Load and extract values for a schema id if found.
+) -> SchemaSpec | None:
+    """Load schema payload for a schema id if found.
 
     Args:
         store (SchemaStore): Schema store.
         schema_id (str): Candidate schema id.
-        request (ExtractRequest): Extraction request.
-        settings (Settings): Runtime settings.
 
     Returns:
-        ExtractionResult | None: Extraction result when found, otherwise None.
+        SchemaSpec | None: Loaded schema when found, otherwise None.
     """
     for schema_path in store.list_schemas():
         candidate = store.load(schema_path)
         if candidate.id == schema_id:
-            result, _ = extract_values(candidate, request, settings)
-            return result
+            return candidate
     return None
-
-
-def _extract_with_schema(schema: SchemaSpec, request: ExtractRequest, settings: Settings) -> ExtractionResult:
-    """Extract values with a pre-loaded schema.
-
-    Args:
-        schema (SchemaSpec): Pre-loaded schema.
-        request (ExtractRequest): Extraction request.
-        settings (Settings): Runtime settings.
-
-    Returns:
-        ExtractionResult: Extraction result.
-    """
-    result, _ = extract_values(schema, request, settings)
-    return result
 
 
 def _run_one_schema_pass(
@@ -911,9 +891,10 @@ def _run_one_schema_pass(
     if not request.schema_id:
         raise ExtractionError(message="ONE_SCHEMA_PASS requires --schema-id or --schema-path")
 
-    result = _extract_for_schema_id(store, request.schema_id, request, settings)
-    if result is None:
+    schema = _load_schema_by_id(store, request.schema_id)
+    if schema is None:
         raise ExtractionError(message=f"Schema id not found: {request.schema_id}")
+    result, _ = extract_values(schema, request, settings)
     return result
 
 
@@ -936,14 +917,16 @@ def _run_two_pass(
         fingerprint = SchemaStore.fingerprint_pdf(request.input_path)
         matched = store.match_schema(fingerprint)
         if matched.matched and matched.schema_id:
-            cached = _extract_for_schema_id(store, matched.schema_id, request, settings)
-            if cached is not None:
-                return cached, True
+            cached_schema = _load_schema_by_id(store, matched.schema_id)
+            if cached_schema is not None:
+                cached_result, _ = extract_values(cached_schema, request, settings)
+                return cached_result, True
 
     schema, _ = infer_schema(request, settings)
     if request.use_cache:
         store.save(schema)
-    return _extract_with_schema(schema, request, settings), False
+    result, _ = extract_values(schema, request, settings)
+    return result, False
 
 
 def persist_result(result: ExtractionResult, path: Path) -> None:
@@ -974,7 +957,7 @@ def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult
 
     if request.schema_path:
         schema = store.load(request.schema_path)
-        result = _extract_with_schema(schema, request, settings)
+        result, _ = extract_values(schema, request, settings)
         return _augment_result_metadata(result, {"mode": request.mode.value, "cache_hit": False})
 
     if request.mode == PassMode.ONE_PASS:

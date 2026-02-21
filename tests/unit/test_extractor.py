@@ -20,7 +20,14 @@ from extractforms.extractor import (
     run_extract,
 )
 from extractforms.settings import Settings
-from extractforms.typing.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
+from extractforms.typing.models import (
+    ExtractRequest,
+    ExtractionResult,
+    FieldValue,
+    RenderedPage,
+    SchemaField,
+    SchemaSpec,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -34,6 +41,10 @@ def _request(pdf: Path, mode: PassMode = PassMode.TWO_PASS) -> ExtractRequest:
         dpi=120,
         image_format="png",
     )
+
+
+def _rendered_page(page_number: int) -> RenderedPage:
+    return RenderedPage(page_number=page_number, mime_type="image/png", data_base64="AA==")
 
 
 def test_extract_values_fills_missing_with_null(monkeypatch, tmp_path: Path) -> None:
@@ -54,7 +65,7 @@ def test_extract_values_fills_missing_with_null(monkeypatch, tmp_path: Path) -> 
         def extract_values(self, pages, keys, extra_instructions=None):
             return [FieldValue(key="a", value="x", page=1, confidence=ConfidenceLevel.HIGH)], None
 
-    page = type("Page", (), {"page_number": 1})()
+    page = _rendered_page(1)
 
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page])
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
@@ -92,7 +103,7 @@ def test_run_extract_two_pass_with_cached_schema(monkeypatch, tmp_path: Path) ->
             return _Match()
 
         def list_schemas(self):
-            return [pdf.parent / "schema.json"]
+            return [pdf.parent / "schema.schema.json"]
 
         def load(self, path: Path) -> SchemaSpec:
             return schema
@@ -253,7 +264,7 @@ def test_run_extract_two_pass_infers_and_saves(monkeypatch, tmp_path: Path) -> N
 
 def test_run_extract_with_schema_path(monkeypatch, tmp_path: Path) -> None:
     pdf = tmp_path / "doc.pdf"
-    schema_path = tmp_path / "schema.json"
+    schema_path = tmp_path / "schema.schema.json"
     pdf.write_bytes(b"doc")
     schema_path.write_text("{}", encoding="utf-8")
 
@@ -327,8 +338,8 @@ def test_extract_values_handles_mixed_paged_and_non_paged_keys(monkeypatch, tmp_
                 )
             return values, None
 
-    page1 = type("Page", (), {"page_number": 1})()
-    page2 = type("Page", (), {"page_number": 2})()
+    page1 = _rendered_page(1)
+    page2 = _rendered_page(2)
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1, page2])
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
 
@@ -383,7 +394,7 @@ def test_extract_values_uses_chunk_pages_for_non_paged_keys(monkeypatch, tmp_pat
                 FieldValue(key="b", value="", page=1, confidence=ConfidenceLevel.UNKNOWN),
             ], None
 
-    pages = [type("Page", (), {"page_number": idx})() for idx in [1, 2, 3]]
+    pages = [_rendered_page(idx) for idx in [1, 2, 3]]
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: pages)
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
 
@@ -419,8 +430,8 @@ def test_extract_values_retries_missing_paged_keys_on_all_pages(monkeypatch, tmp
                 return [FieldValue(key="a", value="", page=2, confidence=ConfidenceLevel.UNKNOWN)], None
             return [FieldValue(key="a", value="found", page=1, confidence=ConfidenceLevel.HIGH)], None
 
-    page1 = type("Page", (), {"page_number": 1})()
-    page2 = type("Page", (), {"page_number": 2})()
+    page1 = _rendered_page(1)
+    page2 = _rendered_page(2)
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1, page2])
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
 
@@ -456,8 +467,8 @@ def test_extract_values_retries_when_paged_value_is_null_sentinel(monkeypatch, t
                 return [FieldValue(key="a", value="NULL", page=2, confidence=ConfidenceLevel.UNKNOWN)], None
             return [FieldValue(key="a", value="found", page=1, confidence=ConfidenceLevel.HIGH)], None
 
-    page1 = type("Page", (), {"page_number": 1})()
-    page2 = type("Page", (), {"page_number": 2})()
+    page1 = _rendered_page(1)
+    page2 = _rendered_page(2)
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1, page2])
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
 
@@ -490,9 +501,9 @@ def test_extract_values_maps_logical_schema_pages_to_nonblank_pdf_pages(monkeypa
             routed_pages.extend([page.page_number for page in pages])
             return [FieldValue(key="a", value="found", page=3, confidence=ConfidenceLevel.HIGH)], None
 
-    page1 = type("Page", (), {"page_number": 1})()
-    page2 = type("Page", (), {"page_number": 2})()
-    page3 = type("Page", (), {"page_number": 3})()
+    page1 = _rendered_page(1)
+    page2 = _rendered_page(2)
+    page3 = _rendered_page(3)
     monkeypatch.setattr(
         "extractforms.extractor.render_pdf_pages",
         lambda *args, **kwargs: [page1, page2, page3],
@@ -548,7 +559,7 @@ def test_extract_values_applies_typed_value_normalization(monkeypatch, tmp_path:
                 ),
             ], None
 
-    page1 = type("Page", (), {"page_number": 1})()
+    page1 = _rendered_page(1)
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1])
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
 
@@ -578,7 +589,7 @@ def test_extract_values_uses_ocr_backend_from_settings(monkeypatch, tmp_path: Pa
             _ = (pages, keys, extra_instructions)
             return [FieldValue(key="a", value="ocr", page=1, confidence=ConfidenceLevel.HIGH)], None
 
-    page = type("Page", (), {"page_number": 1})()
+    page = _rendered_page(1)
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page])
     monkeypatch.setattr("extractforms.extractor.OCRBackend", _FakeOCRBackend)
     monkeypatch.setattr("extractforms.extractor._build_ocr_provider", lambda **kwargs: object())
@@ -618,7 +629,7 @@ def test_run_extract_two_pass_sets_cache_hit_metadata(monkeypatch, tmp_path: Pat
             return type("Match", (), {"matched": True, "schema_id": "id"})()
 
         def list_schemas(self):
-            return [self.root / "schema.json"]
+            return [self.root / "schema.schema.json"]
 
         def load(self, path: Path) -> SchemaSpec:
             _ = path

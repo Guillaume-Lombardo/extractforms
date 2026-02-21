@@ -1,6 +1,4 @@
-"""Core domain models."""
-
-from __future__ import annotations
+"""Extraction request/result and pricing models."""
 
 from pathlib import Path
 from typing import Any
@@ -8,43 +6,9 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from extractforms.exceptions import ModelMismatchError
-from extractforms.typing.enums import (
-    ConfidenceLevel,
-    ExtractionBackendType,
-    FieldKind,
-    FieldSemanticType,
-    PassMode,
-)
-
-_ = Path
-
-
-class SchemaField(BaseModel):
-    """Single schema field definition."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    key: str
-    label: str
-    page: int | None = None
-    kind: FieldKind = FieldKind.UNKNOWN
-    semantic_type: FieldSemanticType | None = None
-    expected_type: str | None = None
-    regex: str | None = None
-    options: list[str] = Field(default_factory=list)
-
-
-class SchemaSpec(BaseModel):
-    """Schema describing an input form."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    id: str
-    name: str
-    fingerprint: str
-    version: int = 1
-    schema_family_id: str | None = None
-    fields: list[SchemaField]
+from extractforms.typing.enums import ConfidenceLevel, ExtractionBackendType, PassMode
+from extractforms.typing.models.page_selection import RenderedPage
+from extractforms.typing.models.schema import SchemaSpec
 
 
 class FieldValue(BaseModel):
@@ -69,15 +33,15 @@ class PricingCall(BaseModel):
     output_tokens: int | None = Field(default=None)
     total_cost_usd: float | None = Field(default=None)
 
-    def __add__(self, other: PricingCall) -> PricingCall:
+    def __add__(self, other: "PricingCall") -> "PricingCall":
         """Combine two PricingCall instances by summing token counts and costs.
 
         Args:
-            other: Another PricingCall instance to combine with.
+            other (PricingCall): Another PricingCall instance to combine with.
 
         Raises:
             NotImplementedError: If the other object is not a PricingCall instance.
-            ModelMismatchError: If the provider or model of the two calls do not match.
+            ModelMismatchError: If provider/model differ.
 
         Returns:
             PricingCall: A new instance with combined values.
@@ -142,60 +106,19 @@ class ExtractRequest(BaseModel):
             value (Path): Input path.
 
         Raises:
+            TypeError: If the input path is not a `pathlib.Path`.
             ValueError: If the path does not exist or is not a file.
 
         Returns:
             Path: Validated input path.
         """
+        if not isinstance(value, Path):
+            raise TypeError("input_path must be a pathlib.Path instance")  # noqa: TRY003
         if not value.exists():
             raise ValueError("Input path does not exist")  # noqa: TRY003
         if not value.is_file():
             raise ValueError("Input path is not a file")  # noqa: TRY003
         return value
-
-
-class MatchResult(BaseModel):
-    """Schema matching output."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    matched: bool
-    schema_id: str | None = None
-    score: float | None = None
-    reason: str | None = None
-
-
-class RenderedPage(BaseModel):
-    """Rendered page sent to extraction backends."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    page_number: int
-    mime_type: str
-    data_base64: str
-
-
-class PageSelectionRequest(BaseModel):
-    """Request payload for selected-page analysis."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    pdf_path: str
-    page_start: int | None = Field(default=None, ge=1)
-    page_end: int | None = Field(default=None, ge=1)
-    max_pages: int | None = Field(default=None, ge=1)
-    ink_ratio_threshold: float = Field(ge=0.0)
-    near_white_level: int = Field(ge=0, le=255)
-    sample_dpi: int = Field(default=72, ge=36, le=300)
-
-
-class PageSelectionAnalysis(BaseModel):
-    """Page analysis for a selected PDF range."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    selected_page_numbers: list[int]
-    nonblank_page_numbers: list[int]
 
 
 class CollectSchemaValuesInput(BaseModel):
@@ -206,27 +129,17 @@ class CollectSchemaValuesInput(BaseModel):
     schema_spec: SchemaSpec
     request: ExtractRequest
     backend: Any
-    pages: list[Any]
+    pages: list[RenderedPage]
     use_page_groups: bool
     schema_page_map: dict[int, int] | None
-
-
-class SanitizedJsonSchema(BaseModel):
-    """Schema payload used for strict structured output."""
-
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    name: str
-    json_schema: dict[str, Any] = Field(alias="schema")
-    strict: bool = True
 
 
 def _sum_optional_int(value1: int | None, value2: int | None) -> int | None:
     """Sum optional int values while preserving unknown state.
 
     Args:
-        value1 (int|None): Optional int value.
-        value2 (int|None): Optional int value.
+        value1 (int | None): Optional int value.
+        value2 (int | None): Optional int value.
 
     Returns:
         int | None: Sum when at least one value is known, else None.
@@ -242,8 +155,8 @@ def _sum_optional_float(value1: float | None, value2: float | None) -> float | N
     """Sum optional float values while preserving unknown state.
 
     Args:
-        value1 (float|None): Optional float value.
-        value2 (float|None): Optional float value.
+        value1 (float | None): Optional float value.
+        value2 (float | None): Optional float value.
 
     Returns:
         float | None: Sum when at least one value is known, else None.

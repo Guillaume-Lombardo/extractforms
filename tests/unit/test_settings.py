@@ -47,6 +47,18 @@ def test_settings_load_from_env_file(tmp_path: Path, monkeypatch) -> None:
     assert settings.extraction_backend == ExtractionBackendType.OCR
 
 
+def test_settings_rejects_plain_http_openai_base_url_outside_localhost(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://api.example.com/v1")
+    with pytest.raises(ValidationError, match="must use https outside local development"):
+        Settings()
+
+
+def test_settings_allows_plain_http_openai_base_url_for_localhost(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:4000/v1")
+    settings = Settings()
+    assert settings.openai_base_url == "http://localhost:4000/v1"
+
+
 def test_get_settings_uses_environment(monkeypatch) -> None:
     get_settings.cache_clear()
     monkeypatch.setenv("APP_ENV", "ci")
