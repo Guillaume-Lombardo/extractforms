@@ -116,7 +116,7 @@
 ### S2
 
 - [x] Implement page-by-page value extraction using `SchemaField.page`.
-- [ ] Add fallback key-to-page mapping when page metadata is sparse.
+- [x] Add fallback key-to-page mapping when page metadata is sparse.
 - [x] Implement simple schema matching (heuristics + metadata index).
 - [x] Support extraction batching (`--chunk-pages`) for larger documents.
 - [x] Detect and filter near-blank PDF pages (recto/verso scan artifacts) before extraction.
@@ -156,8 +156,8 @@
 - [x] End-to-end tests: sample PDF extraction via CLI.
 - [x] End-to-end tests: one-pass and two-pass smoke coverage.
 - [x] End-to-end tests: regression for null sentinel and output contract.
-- [ ] Unit tests: blank-page detector and page-map heuristics.
-- [ ] Integration tests: extraction behavior with interleaved blank pages and schema page routing.
+- [x] Unit tests: blank-page detector and page-map heuristics.
+- [x] Integration tests: extraction behavior with interleaved blank pages and schema page routing.
 - [ ] End-to-end tests: typed-field extraction flow (`phone`, `address`, `amount`) with null-sentinel invariants.
 
 ## Risks and Mitigations
