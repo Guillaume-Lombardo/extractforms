@@ -68,7 +68,9 @@ def build_schema_inference_prompt(*, extra_instructions: str | None = None) -> s
         str: Prompt text.
     """
     base = (
-        "Infer a stable schema for this form document. Return fields with key, label, page, and field kind."
+        "Infer a stable schema for this form document. "
+        "Return fields with key, label, page, kind, and semantic_type when identifiable. "
+        "Use the real PDF order for page numbering (1-based) and ignore printed page labels."
     )
     if extra_instructions:
         return f"{base}\nAdditional instructions: {extra_instructions}"
@@ -89,6 +91,7 @@ def build_values_extraction_prompt(schema: SchemaSpec, *, extra_instructions: st
     base = (
         "Extract values for the following keys. "
         "When a value is missing return the NULL sentinel. "
+        "Use the real PDF order for page numbering (1-based) and ignore printed page labels. "
         f"Keys: {keys}."
     )
     if extra_instructions:

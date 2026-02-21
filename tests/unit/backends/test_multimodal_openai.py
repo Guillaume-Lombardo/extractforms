@@ -139,3 +139,24 @@ def test_image_content_builder() -> None:
     page = RenderedPage(page_number=1, mime_type="image/png", data_base64="AA==")
     content = MultimodalLLMBackend._image_content(page)
     assert content["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+def test_payload_includes_page_markers(mocker) -> None:
+    backend = MultimodalLLMBackend(
+        _settings(
+            base_url="https://llm.local/v1",
+            api_key="test-api-key",  # pragma: allowlist secret
+        ),
+    )
+    page = RenderedPage(page_number=2, mime_type="image/png", data_base64="AA==")
+
+    mock_call = mocker.AsyncMock(
+        return_value=({"choices": [{"message": {"content": '{"name":"demo","fields":[]}'}}]}, None),
+    )
+    mocker.patch.object(backend, "_apost_chat_completions", new=mock_call)
+
+    backend.infer_schema([page])
+
+    payload = mock_call.call_args.args[0]
+    content_blocks = payload["messages"][0]["content"]
+    assert any("PAGE 2" in block.get("text", "") for block in content_blocks if block["type"] == "text")

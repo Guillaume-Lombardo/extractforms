@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from extractforms.exceptions import ModelMismatchError
-from extractforms.typing.enums import ConfidenceLevel, FieldKind, PassMode
+from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
 
 _ = Path
 
@@ -22,6 +22,7 @@ class SchemaField(BaseModel):
     label: str
     page: int | None = None
     kind: FieldKind = FieldKind.UNKNOWN
+    semantic_type: FieldSemanticType | None = None
     expected_type: str | None = None
     regex: str | None = None
     options: list[str] = Field(default_factory=list)
@@ -114,6 +115,9 @@ class ExtractRequest(BaseModel):
     page_end: int | None = None
     max_pages: int | None = None
     chunk_pages: int = 1
+    drop_blank_pages: bool | None = None
+    blank_page_ink_threshold: float | None = None
+    blank_page_near_white_level: int | None = None
     schema_id: str | None = None
     schema_path: Path | None = None
     match_schema: bool = False

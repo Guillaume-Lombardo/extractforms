@@ -78,3 +78,32 @@ def test_main_runs_extract_flow(mocker, tmp_path: Path) -> None:
 
     assert result == 0
     mock_persist.assert_called_once()
+
+
+def test_extract_request_includes_blank_page_options() -> None:
+    input_pdf = Path(__file__)
+    args = Namespace(
+        input_path=input_pdf,
+        output_path=Path("out.json"),
+        mode=PassMode.TWO_PASS,
+        no_cache=False,
+        dpi=150,
+        image_format="png",
+        page_start=None,
+        page_end=None,
+        max_pages=None,
+        chunk_pages=1,
+        drop_blank_pages=True,
+        blank_page_ink_threshold=0.01,
+        blank_page_near_white_level=240,
+        schema_id=None,
+        schema_path=None,
+        match_schema=False,
+        extra_instructions=None,
+    )
+
+    request = cli._build_extract_request(args)
+
+    assert request.drop_blank_pages is True
+    assert request.blank_page_ink_threshold == 0.01
+    assert request.blank_page_near_white_level == 240
