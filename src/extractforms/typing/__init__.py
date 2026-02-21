@@ -2,10 +2,13 @@
 
 from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
 from extractforms.typing.models import (
+    CollectSchemaValuesInput,
     ExtractionResult,
     ExtractRequest,
     FieldValue,
     MatchResult,
+    PageSelectionAnalysis,
+    PageSelectionRequest,
     PricingCall,
     RenderedPage,
     SanitizedJsonSchema,
@@ -15,6 +18,7 @@ from extractforms.typing.models import (
 from extractforms.typing.protocol import ExtractorBackend, PageSource
 
 __all__ = [
+    "CollectSchemaValuesInput",
     "ConfidenceLevel",
     "ExtractRequest",
     "ExtractionResult",
@@ -23,6 +27,8 @@ __all__ = [
     "FieldSemanticType",
     "FieldValue",
     "MatchResult",
+    "PageSelectionAnalysis",
+    "PageSelectionRequest",
     "PageSource",
     "PassMode",
     "PricingCall",

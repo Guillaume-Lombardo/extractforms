@@ -4,6 +4,7 @@ import ssl
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from pydantic import ValidationError
 
 from extractforms.exceptions import SettingsError
 from extractforms.settings import (
@@ -333,3 +334,21 @@ def test_settings_initializes_httpx_clients() -> None:
     assert "async_no_proxy" in settings.httpx_clients
     settings.close_httpx_clients()
     assert settings.httpx_clients == {}
+
+
+def test_settings_rejects_non_http_openai_base_url(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "file:///tmp/socket")
+    with pytest.raises(ValidationError, match="http or https"):
+        Settings()
+
+
+def test_settings_rejects_openai_base_url_without_host(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "https:///v1")
+    with pytest.raises(ValidationError, match="hostname"):
+        Settings()
+
+
+def test_settings_strips_openai_base_url_whitespace(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "  https://api.example.local/v1  ")
+    settings = Settings()
+    assert settings.openai_base_url == "https://api.example.local/v1"

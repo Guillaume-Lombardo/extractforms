@@ -5,35 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import fitz
-from pydantic import BaseModel, ConfigDict, Field
 
 from extractforms import logger
+from extractforms.typing.models import PageSelectionAnalysis, PageSelectionRequest
 
 if TYPE_CHECKING:
     from extractforms.typing.models import RenderedPage, SchemaSpec
-
-
-class PageSelectionRequest(BaseModel):
-    """Request payload for selected-page analysis."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    pdf_path: str
-    page_start: int | None = Field(default=None, ge=1)
-    page_end: int | None = Field(default=None, ge=1)
-    max_pages: int | None = Field(default=None, ge=1)
-    ink_ratio_threshold: float = Field(ge=0.0)
-    near_white_level: int = Field(ge=0, le=255)
-    sample_dpi: int = Field(default=72, ge=36, le=300)
-
-
-class PageSelectionAnalysis(BaseModel):
-    """Page analysis for a selected PDF range."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    selected_page_numbers: list[int]
-    nonblank_page_numbers: list[int]
 
 
 def analyze_page_selection(request: PageSelectionRequest) -> PageSelectionAnalysis | None:
