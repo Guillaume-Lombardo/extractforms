@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 import certifi
 import httpx
-from pydantic import Field, PrivateAttr, ValidationError
+from pydantic import Field, PrivateAttr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from extractforms.exceptions import SettingsError
@@ -143,6 +143,30 @@ class Settings(BaseSettings):
     _no_proxy_networks: tuple[NoProxyNetwork, ...] = PrivateAttr(default=())
     _httpx_clients: dict[str, object] = PrivateAttr(default_factory=dict)
     _close_tasks: set[asyncio.Task[None]] = PrivateAttr(default_factory=set)
+
+    @field_validator("openai_base_url")
+    @classmethod
+    def _validate_openai_base_url(cls, value: str | None) -> str | None:
+        """Validate OpenAI base URL format and scheme.
+
+        Args:
+            value (str | None): Raw base URL.
+
+        Raises:
+            ValueError: If URL scheme or host is invalid.
+
+        Returns:
+            str | None: Validated URL.
+        """
+        if value in {None, ""}:
+            return value
+
+        parsed = urlparse(value)
+        if parsed.scheme not in {"http", "https"}:
+            raise ValueError("OPENAI_BASE_URL must use http or https scheme")  # noqa: TRY003
+        if not parsed.netloc:
+            raise ValueError("OPENAI_BASE_URL must include a network location")  # noqa: TRY003
+        return value
 
     def model_post_init(self, __context: object, /) -> None:
         """Initialize derived runtime settings."""

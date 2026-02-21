@@ -2,14 +2,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Self
 
-from extractforms.page_filtering import (
-    PageSelectionAnalysis,
-    PageSelectionRequest,
+from extractforms.processing.page_selection import (
     analyze_page_selection,
     build_schema_page_mapping,
     filter_rendered_pages_to_nonblank,
 )
-from extractforms.typing.models import RenderedPage, SchemaField, SchemaSpec
+from extractforms.typing.models import (
+    PageSelectionAnalysis,
+    PageSelectionRequest,
+    RenderedPage,
+    SchemaField,
+    SchemaSpec,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -103,7 +107,7 @@ def test_analyze_page_selection_detects_nonblank_pages(  # noqa: C901
             _ = path
             return _FakeDoc()
 
-    monkeypatch.setattr("extractforms.page_filtering.fitz", _FakeFitz)
+    monkeypatch.setattr("extractforms.processing.page_selection.fitz", _FakeFitz)
 
     analysis = analyze_page_selection(
         PageSelectionRequest(

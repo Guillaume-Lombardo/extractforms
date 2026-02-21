@@ -5,31 +5,30 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from uuid import uuid4
-
-from pydantic import BaseModel, ConfigDict
 
 from extractforms.async_runner import run_async
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
 from extractforms.exceptions import ExtractionError
-from extractforms.field_normalization import normalize_typed_value
-from extractforms.page_filtering import (
-    PageSelectionAnalysis,
-    PageSelectionRequest,
+from extractforms.pdf_render import render_pdf_pages
+from extractforms.pricing import merge_pricing_calls
+from extractforms.processing.normalization import normalize_typed_value
+from extractforms.processing.page_selection import (
     analyze_page_selection,
     build_schema_page_mapping,
     filter_rendered_pages_to_nonblank,
 )
-from extractforms.pdf_render import render_pdf_pages
-from extractforms.pricing import merge_pricing_calls
 from extractforms.schema_store import SchemaStore
 from extractforms.typing.enums import ConfidenceLevel, PassMode
 from extractforms.typing.models import (
+    CollectSchemaValuesInput,
     ExtractionResult,
     ExtractRequest,
     FieldValue,
     MatchResult,
+    PageSelectionAnalysis,
+    PageSelectionRequest,
     PricingCall,
     RenderedPage,
     SchemaSpec,
@@ -37,19 +36,6 @@ from extractforms.typing.models import (
 
 if TYPE_CHECKING:
     from extractforms.settings import Settings
-
-
-class _CollectSchemaValuesInput(BaseModel):
-    """Input payload for schema value collection."""
-
-    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
-
-    schema_spec: SchemaSpec
-    request: ExtractRequest
-    backend: object
-    pages: list[object]
-    use_page_groups: bool
-    schema_page_map: dict[int, int] | None
 
 
 def _confidence_rank(confidence: ConfidenceLevel) -> int:
@@ -113,18 +99,6 @@ def _backend_concurrency(backend: MultimodalLLMBackend) -> int:
     except (TypeError, ValueError):
         concurrency = 8
     return max(concurrency, 1)
-
-
-def _non_blank_keys(values: list[FieldValue]) -> set[str]:
-    """Return keys that have a non-empty extracted value.
-
-    Args:
-        values (list[FieldValue]): Extracted values.
-
-    Returns:
-        set[str]: Keys whose value is not blank.
-    """
-    return {value.key for value in values if value.value.strip()}
 
 
 def _backend_null_sentinel(backend: MultimodalLLMBackend) -> str:
@@ -261,18 +235,18 @@ async def _extract_values_for_page_groups(
 
 
 async def _collect_schema_values(
-    payload: _CollectSchemaValuesInput,
+    payload: CollectSchemaValuesInput,
 ) -> tuple[list[FieldValue], list[PricingCall]]:
     """Collect extracted values and pricing calls for a schema.
 
     Args:
-        payload (_CollectSchemaValuesInput): Collection input payload.
+        payload (CollectSchemaValuesInput): Collection input payload.
 
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
     """
-    backend = cast("MultimodalLLMBackend", payload.backend)
-    pages = cast("list[RenderedPage]", payload.pages)
+    backend = payload.backend
+    pages = payload.pages
 
     keys_by_page = _group_keys_by_page(payload.schema_spec, page_map=payload.schema_page_map)
     non_paged_keys = [field.key for field in payload.schema_spec.fields if field.page is None]
@@ -480,11 +454,11 @@ def extract_values(
 
     extracted_values, calls = run_async(
         _collect_schema_values(
-            _CollectSchemaValuesInput(
+            CollectSchemaValuesInput(
                 schema_spec=schema,
                 request=request,
                 backend=backend,
-                pages=cast("list[object]", pages),
+                pages=pages,
                 use_page_groups=use_page_groups,
                 schema_page_map=schema_page_map,
             ),

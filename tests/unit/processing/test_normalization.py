@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from extractforms.field_normalization import normalize_typed_value
+from extractforms.processing.normalization import normalize_typed_value
 from extractforms.typing.enums import FieldKind, FieldSemanticType
 from extractforms.typing.models import SchemaField
 
