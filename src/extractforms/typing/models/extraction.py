@@ -1,7 +1,5 @@
 """Extraction request/result and pricing models."""
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from extractforms.exceptions import ModelMismatchError
 from extractforms.typing.enums import ConfidenceLevel, ExtractionBackendType, PassMode
+from extractforms.typing.models.page_selection import RenderedPage
+from extractforms.typing.models.schema import SchemaSpec
 
 
 class FieldValue(BaseModel):
@@ -33,7 +33,7 @@ class PricingCall(BaseModel):
     output_tokens: int | None = Field(default=None)
     total_cost_usd: float | None = Field(default=None)
 
-    def __add__(self, other: PricingCall) -> PricingCall:
+    def __add__(self, other: "PricingCall") -> "PricingCall":
         """Combine two PricingCall instances by summing token counts and costs.
 
         Args:
@@ -106,14 +106,14 @@ class ExtractRequest(BaseModel):
             value (Path): Input path.
 
         Raises:
-            TypeError: If the provided value is not a Path.
+            TypeError: If the input path is not a `pathlib.Path`.
             ValueError: If the path does not exist or is not a file.
 
         Returns:
             Path: Validated input path.
         """
         if not isinstance(value, Path):
-            raise TypeError(type(value))
+            raise TypeError("input_path must be a pathlib.Path instance")  # noqa: TRY003
         if not value.exists():
             raise ValueError("Input path does not exist")  # noqa: TRY003
         if not value.is_file():
@@ -126,10 +126,10 @@ class CollectSchemaValuesInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    schema_spec: Any
+    schema_spec: SchemaSpec
     request: ExtractRequest
     backend: Any
-    pages: list[Any]
+    pages: list[RenderedPage]
     use_page_groups: bool
     schema_page_map: dict[int, int] | None
 

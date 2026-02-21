@@ -5,10 +5,20 @@ from typing import TYPE_CHECKING
 from extractforms.extractor import extract_values
 from extractforms.settings import Settings
 from extractforms.typing.enums import ConfidenceLevel, PassMode
-from extractforms.typing.models import ExtractRequest, FieldValue, SchemaField, SchemaSpec
+from extractforms.typing.models import (
+    ExtractRequest,
+    FieldValue,
+    RenderedPage,
+    SchemaField,
+    SchemaSpec,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+def _rendered_page(page_number: int) -> RenderedPage:
+    return RenderedPage(page_number=page_number, mime_type="image/png", data_base64="AA==")
 
 
 def test_extract_values_routes_schema_pages_with_interleaved_blank_pages(
@@ -47,10 +57,10 @@ def test_extract_values_routes_schema_pages_with_interleaved_blank_pages(
             return [], None
 
     calls: list[tuple[tuple[int, ...], tuple[str, ...]]] = []
-    page1 = type("Page", (), {"page_number": 1})()
-    page2 = type("Page", (), {"page_number": 2})()
-    page3 = type("Page", (), {"page_number": 3})()
-    page4 = type("Page", (), {"page_number": 4})()
+    page1 = _rendered_page(1)
+    page2 = _rendered_page(2)
+    page3 = _rendered_page(3)
+    page4 = _rendered_page(4)
     monkeypatch.setattr(
         "extractforms.extractor.render_pdf_pages",
         lambda *args, **kwargs: [page1, page2, page3, page4],
