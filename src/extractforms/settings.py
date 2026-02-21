@@ -161,12 +161,16 @@ class Settings(BaseSettings):
         if value in {None, ""}:
             return value
 
-        parsed = urlparse(value)
+        stripped = value.strip()
+        if not stripped:
+            return value
+
+        parsed = urlparse(stripped)
         if parsed.scheme not in {"http", "https"}:
             raise ValueError("OPENAI_BASE_URL must use http or https scheme")  # noqa: TRY003
-        if not parsed.netloc:
-            raise ValueError("OPENAI_BASE_URL must include a network location")  # noqa: TRY003
-        return value
+        if not parsed.hostname:
+            raise ValueError("OPENAI_BASE_URL must include a hostname")  # noqa: TRY003
+        return stripped
 
     def model_post_init(self, __context: object, /) -> None:
         """Initialize derived runtime settings."""

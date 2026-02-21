@@ -344,5 +344,11 @@ def test_settings_rejects_non_http_openai_base_url(monkeypatch) -> None:
 
 def test_settings_rejects_openai_base_url_without_host(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_BASE_URL", "https:///v1")
-    with pytest.raises(ValidationError, match="network location"):
+    with pytest.raises(ValidationError, match="hostname"):
         Settings()
+
+
+def test_settings_strips_openai_base_url_whitespace(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_BASE_URL", "  https://api.example.local/v1  ")
+    settings = Settings()
+    assert settings.openai_base_url == "https://api.example.local/v1"

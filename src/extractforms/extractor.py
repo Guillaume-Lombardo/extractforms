@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
 
 from extractforms.async_runner import run_async
@@ -245,8 +245,8 @@ async def _collect_schema_values(
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
     """
-    backend = payload.backend
-    pages = payload.pages
+    backend = cast("MultimodalLLMBackend", payload.backend)
+    pages = cast("list[RenderedPage]", payload.pages)
 
     keys_by_page = _group_keys_by_page(payload.schema_spec, page_map=payload.schema_page_map)
     non_paged_keys = [field.key for field in payload.schema_spec.fields if field.page is None]
