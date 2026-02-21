@@ -67,7 +67,7 @@
 - [x] `src/extractforms/schema_store.py`
 - [x] `src/extractforms/backends/protocol.py`
 - [x] `src/extractforms/backends/multimodal_openai.py`
-- [x] `src/extractforms/backends/ocr_document_intelligence.py` (stub)
+- [x] `src/extractforms/backends/ocr_document_intelligence.py`
 - [x] `src/extractforms/prompts.py`
 - [x] `src/extractforms/extractor.py`
 - [x] `src/extractforms/pricing.py`
@@ -128,10 +128,10 @@
 ### S3
 
 - [x] Implement OCR backend (Document Intelligence integration path).
-- [ ] Wire OCR backend selection in CLI/API runtime settings.
-- [ ] Add OCR-to-field reconstruction and optional text-only LLM normalization.
-- [ ] Harden pricing/finops and extraction metrics.
-- [ ] Add schema lifecycle management improvements (versioning/migrations).
+- [x] Wire OCR backend selection in CLI/API runtime settings.
+- [x] Add OCR-to-field reconstruction and optional text-only LLM normalization.
+- [x] Harden pricing/finops and extraction metrics.
+- [x] Add schema lifecycle management improvements (versioning/migrations).
 
 ## Acceptance Criteria (MVP)
 

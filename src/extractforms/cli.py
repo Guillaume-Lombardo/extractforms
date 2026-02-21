@@ -11,7 +11,7 @@ from extractforms.exceptions import PackageError
 from extractforms.extractor import persist_result, run_extract
 from extractforms.logging import configure_logging
 from extractforms.settings import get_settings
-from extractforms.typing.enums import PassMode
+from extractforms.typing.enums import ExtractionBackendType, PassMode
 from extractforms.typing.models import ExtractRequest
 
 
@@ -65,6 +65,13 @@ def build_parser() -> argparse.ArgumentParser:
     extract_parser.add_argument("--max-pages", type=int, default=None, dest="max_pages")
 
     extract_parser.add_argument("--chunk-pages", type=int, default=1, dest="chunk_pages")
+    extract_parser.add_argument(
+        "--backend",
+        type=ExtractionBackendType.from_str,
+        choices=list(ExtractionBackendType),
+        default=None,
+        dest="backend",
+    )
     extract_parser.add_argument("--drop-blank-pages", action="store_true", dest="drop_blank_pages")
     extract_parser.add_argument(
         "--blank-page-ink-threshold",
@@ -104,6 +111,7 @@ def _build_extract_request(args: argparse.Namespace) -> ExtractRequest:
         input_path=args.input_path,
         output_path=args.output_path,
         mode=mode,
+        backend=getattr(args, "backend", None),
         use_cache=not args.no_cache,
         dpi=args.dpi,
         image_format=args.image_format,

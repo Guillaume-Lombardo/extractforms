@@ -45,6 +45,13 @@ class PassMode(_EnumMixin):
     ONE_SCHEMA_PASS = "one_schema_pass"  # noqa: S105
 
 
+class ExtractionBackendType(_EnumMixin):
+    """Supported extraction backend types."""
+
+    MULTIMODAL = "multimodal"
+    OCR = "ocr"
+
+
 class FieldKind(_EnumMixin):
     """Supported schema field kinds."""
 

@@ -24,6 +24,7 @@ Supported options include:
 - `--no-cache`
 - `--dpi`, `--image-format`, `--page-start`, `--page-end`, `--max-pages`
 - `--chunk-pages`
+- `--backend` (`multimodal` or `ocr`)
 - `--drop-blank-pages`, `--blank-page-ink-threshold`, `--blank-page-near-white-level`
 - `--extra-instructions`
 - `--schema-id`, `--schema-path`, `--match-schema`
@@ -37,6 +38,7 @@ Copy `.env.template` to `.env` and configure:
 - logging (`LOG_LEVEL`, `LOG_JSON`, `LOG_FILE`)
 - enterprise network/TLS (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`, `CERT_PATH`)
 - model endpoint (`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`)
+- backend selection (`EXTRACTION_BACKEND`, `OCR_PROVIDER_FACTORY`, `OCR_ENABLE_TEXT_NORMALIZATION`)
 - extraction behavior (`DROP_BLANK_PAGES`, `BLANK_PAGE_INK_THRESHOLD`, `BLANK_PAGE_NEAR_WHITE_LEVEL`)
 
 ## Project Layout

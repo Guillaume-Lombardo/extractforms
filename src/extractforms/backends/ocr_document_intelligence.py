@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING, Protocol
 
 from extractforms.exceptions import BackendError
+from extractforms.pricing import merge_pricing_calls
 from extractforms.typing.enums import ConfidenceLevel
 from extractforms.typing.models import FieldValue, SchemaField, SchemaSpec
 
@@ -29,6 +30,18 @@ class OCRPageProvider(Protocol):
         """
 
 
+class OCRValueNormalizer(Protocol):
+    """Protocol for optional OCR value normalization stage."""
+
+    def normalize_values(
+        self,
+        values: dict[str, str],
+        *,
+        extra_instructions: str | None = None,
+    ) -> tuple[dict[str, str], PricingCall | None]:
+        """Normalize OCR values map."""
+
+
 class OCRBackend:
     """OCR backend with pluggable page OCR provider.
 
@@ -42,15 +55,18 @@ class OCRBackend:
         *,
         provider: OCRPageProvider | None = None,
         null_sentinel: str = "NULL",
+        text_normalizer: OCRValueNormalizer | None = None,
     ) -> None:
         """Initialize OCR backend.
 
         Args:
             provider (OCRPageProvider | None): OCR page provider bridge.
             null_sentinel (str): Null sentinel for missing values.
+            text_normalizer (OCRValueNormalizer | None): Optional value normalizer.
         """
         self._provider = provider
         self._null_sentinel = null_sentinel
+        self._text_normalizer = text_normalizer
 
     def infer_schema(
         self,
@@ -151,7 +167,7 @@ class OCRBackend:
                     ),
                 )
 
-        return values, None
+        return self._normalize_extracted_values(values, extra_instructions=extra_instructions)
 
     def _ocr_pages(self, pages: list[RenderedPage]) -> list[dict[str, object]]:
         """Load OCR payload through provider.
@@ -173,6 +189,36 @@ class OCRBackend:
                 ),
             )
         return self._provider.extract_pages(pages)
+
+    def _normalize_extracted_values(
+        self,
+        values: list[FieldValue],
+        *,
+        extra_instructions: str | None = None,
+    ) -> tuple[list[FieldValue], PricingCall | None]:
+        """Apply optional text-only normalization over extracted OCR values.
+
+        Args:
+            values (list[FieldValue]): Extracted OCR values.
+            extra_instructions (str | None): Optional runtime instructions.
+
+        Returns:
+            tuple[list[FieldValue], PricingCall | None]: Final values and optional pricing.
+        """
+        if self._text_normalizer is None or not values:
+            return values, None
+
+        raw_map = {value.key: value.value for value in values}
+        normalized_map, normalization_pricing = self._text_normalizer.normalize_values(
+            raw_map,
+            extra_instructions=extra_instructions,
+        )
+
+        normalized_values: list[FieldValue] = [
+            value.model_copy(update={"value": normalized_map.get(value.key, value.value)}) for value in values
+        ]
+        pricing = merge_pricing_calls([call for call in [normalization_pricing] if call is not None])
+        return normalized_values, pricing
 
     @staticmethod
     def _get_page_lines(ocr_pages: list[dict[str, object]]) -> list[tuple[int, list[str]]]:

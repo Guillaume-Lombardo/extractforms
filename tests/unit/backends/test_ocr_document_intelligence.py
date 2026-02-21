@@ -5,7 +5,7 @@ import pytest
 from extractforms.backends.ocr_document_intelligence import OCRBackend
 from extractforms.exceptions import BackendError
 from extractforms.typing.enums import ConfidenceLevel
-from extractforms.typing.models import RenderedPage
+from extractforms.typing.models import PricingCall, RenderedPage
 
 
 class _FakeOCRProvider:
@@ -110,3 +110,23 @@ def test_ocr_backend_returns_empty_when_requested_keys_not_found() -> None:
 
     assert pricing is None
     assert values == []
+
+
+def test_ocr_backend_applies_optional_text_normalizer() -> None:
+    class _Normalizer:
+        def normalize_values(self, values: dict[str, str], *, extra_instructions: str | None = None):
+            _ = extra_instructions
+            return {**values, "address": "Normalized Address"}, PricingCall(
+                provider="openai-compatible",
+                model="gpt-4o-mini",
+                input_tokens=10,
+                output_tokens=3,
+                total_cost_usd=None,
+            )
+
+    backend = OCRBackend(provider=_FakeOCRProvider(), text_normalizer=_Normalizer())
+    page = RenderedPage(page_number=1, mime_type="image/png", data_base64="AA==")
+    values, pricing = backend.extract_values([page], ["address"])
+
+    assert pricing is not None
+    assert values[0].value == "Normalized Address"

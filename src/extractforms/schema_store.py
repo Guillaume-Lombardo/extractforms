@@ -14,6 +14,7 @@ from extractforms import logger
 from extractforms.typing.models import MatchResult, SchemaField, SchemaSpec
 
 _ = Path
+_SCHEMA_FILE_VERSION = 2
 
 
 class SchemaStore(BaseModel):
@@ -74,7 +75,8 @@ class SchemaStore(BaseModel):
             SchemaSpec: Loaded schema.
         """
         payload = json.loads(path.read_text(encoding="utf-8"))
-        return SchemaSpec.model_validate(payload)
+        migrated = _migrate_schema_payload(payload)
+        return SchemaSpec.model_validate(migrated)
 
     def save(self, schema: SchemaSpec) -> Path:
         """Persist schema to store.
@@ -90,7 +92,11 @@ class SchemaStore(BaseModel):
             schema_id=schema.id,
             fingerprint=schema.fingerprint,
         )
-        path.write_text(schema.model_dump_json(indent=2), encoding="utf-8")
+        envelope = {
+            "schema_file_version": _SCHEMA_FILE_VERSION,
+            "schema": schema.model_dump(mode="json"),
+        }
+        path.write_text(json.dumps(envelope, indent=2), encoding="utf-8")
         logger.info("Schema cached", extra={"schema_path": str(path)})
         return path
 
@@ -135,4 +141,61 @@ def build_schema_with_generated_id(name: str, fingerprint: str, fields: list[Sch
     Returns:
         SchemaSpec: Generated schema.
     """
-    return SchemaSpec(id=str(uuid4()), name=name, fingerprint=fingerprint, fields=fields)
+    schema_id = str(uuid4())
+    return SchemaSpec(
+        id=schema_id,
+        name=name,
+        fingerprint=fingerprint,
+        version=1,
+        schema_family_id=schema_id,
+        fields=fields,
+    )
+
+
+def build_schema_revision(
+    previous: SchemaSpec,
+    *,
+    fields: list[SchemaField],
+    name: str | None = None,
+) -> SchemaSpec:
+    """Create a new schema revision from an existing schema.
+
+    Args:
+        previous (SchemaSpec): Existing schema.
+        fields (list[SchemaField]): Revised fields payload.
+        name (str | None): Optional revised schema name.
+
+    Returns:
+        SchemaSpec: New schema revision.
+    """
+    family_id = previous.schema_family_id or previous.id
+    return SchemaSpec(
+        id=str(uuid4()),
+        name=name or previous.name,
+        fingerprint=previous.fingerprint,
+        version=previous.version + 1,
+        schema_family_id=family_id,
+        fields=fields,
+    )
+
+
+def _migrate_schema_payload(payload: dict[str, object]) -> dict[str, object]:
+    """Migrate schema payload from file format versions to current model format.
+
+    Args:
+        payload (dict[str, object]): Raw JSON payload.
+
+    Returns:
+        dict[str, object]: Migrated schema object payload.
+    """
+    schema_object = payload
+    if "schema" in payload and isinstance(payload["schema"], dict):
+        schema_object = payload["schema"]
+
+    migrated = dict(schema_object)
+    if "version" not in migrated:
+        migrated["version"] = 1
+    if "schema_family_id" not in migrated:
+        schema_id = migrated.get("id")
+        migrated["schema_family_id"] = schema_id if isinstance(schema_id, str) else None
+    return migrated

@@ -18,6 +18,7 @@ from pydantic import Field, PrivateAttr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from extractforms.exceptions import SettingsError
+from extractforms.typing.enums import ExtractionBackendType
 
 NoProxyNetwork = ipaddress.IPv4Network | ipaddress.IPv6Network
 NoProxyRegex = re.Pattern[str]
@@ -103,6 +104,26 @@ class Settings(BaseSettings):
         default=8,
         validation_alias="OPENAI_CONCURRENCY",
         description="Maximum number of concurrent OpenAI requests.",
+    )
+    extraction_backend: ExtractionBackendType = Field(
+        default=ExtractionBackendType.MULTIMODAL,
+        validation_alias="EXTRACTION_BACKEND",
+        description="Extraction backend type (`multimodal` or `ocr`).",
+    )
+    ocr_provider_factory: str | None = Field(
+        default=None,
+        validation_alias="OCR_PROVIDER_FACTORY",
+        description="Dotted-path factory for OCR provider instantiation.",
+    )
+    ocr_enable_text_normalization: bool = Field(
+        default=False,
+        validation_alias="OCR_ENABLE_TEXT_NORMALIZATION",
+        description="Enable optional text-only LLM normalization on OCR values.",
+    )
+    ocr_text_normalization_model: str | None = Field(
+        default=None,
+        validation_alias="OCR_TEXT_NORMALIZATION_MODEL",
+        description="Optional model override for OCR text normalization.",
     )
 
     results_dir: str = Field(
