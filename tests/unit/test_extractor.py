@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from extractforms.exceptions import ExtractionError
-from extractforms.typing.enums import ConfidenceLevel, PassMode
+from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
 from extractforms.extractor import (
     extract_one_pass,
     extract_values,
@@ -435,3 +435,92 @@ def test_extract_values_retries_when_paged_value_is_null_sentinel(monkeypatch, t
 
     assert result.flat["a"] == "found"
     assert calls == [(1, ("a",)), (2, ("a",))]
+
+
+def test_extract_values_maps_logical_schema_pages_to_nonblank_pdf_pages(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[SchemaField(key="a", label="A", page=2)],
+    )
+    routed_pages: list[int] = []
+
+    class _FakeBackend:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            _ = (keys, extra_instructions)
+            routed_pages.extend([page.page_number for page in pages])
+            return [FieldValue(key="a", value="found", page=3, confidence=ConfidenceLevel.HIGH)], None
+
+    page1 = type("Page", (), {"page_number": 1})()
+    page2 = type("Page", (), {"page_number": 2})()
+    page3 = type("Page", (), {"page_number": 3})()
+    monkeypatch.setattr(
+        "extractforms.extractor.render_pdf_pages",
+        lambda *args, **kwargs: [page1, page2, page3],
+    )
+    monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
+    monkeypatch.setattr(
+        "extractforms.extractor.analyze_page_selection",
+        lambda *args, **kwargs: type(
+            "Analysis",
+            (),
+            {"selected_page_numbers": [1, 2, 3], "nonblank_page_numbers": [1, 3]},
+        )(),
+    )
+
+    request = _request(pdf, PassMode.TWO_PASS)
+    result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
+
+    assert result.flat["a"] == "found"
+    assert routed_pages == [3]
+
+
+def test_extract_values_applies_typed_value_normalization(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[
+            SchemaField(
+                key="phone",
+                label="Phone",
+                page=1,
+                kind=FieldKind.PHONE,
+                semantic_type=FieldSemanticType.PHONE,
+            ),
+        ],
+    )
+
+    class _FakeBackend:
+        def __init__(self, settings) -> None:
+            self.settings = settings
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            _ = (pages, keys, extra_instructions)
+            return [
+                FieldValue(
+                    key="phone",
+                    value="00 33 6 12 34 56 78",
+                    page=1,
+                    confidence=ConfidenceLevel.HIGH,
+                ),
+            ], None
+
+    page1 = type("Page", (), {"page_number": 1})()
+    monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page1])
+    monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
+
+    request = _request(pdf, PassMode.TWO_PASS)
+    result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
+
+    assert result.flat["phone"] == "+33612345678"

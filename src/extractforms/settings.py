@@ -120,6 +120,21 @@ class Settings(BaseSettings):
         validation_alias="NULL_SENTINEL",
         description="Sentinel value for null fields.",
     )
+    drop_blank_pages: bool = Field(
+        default=False,
+        validation_alias="DROP_BLANK_PAGES",
+        description="Drop near-blank pages before extraction.",
+    )
+    blank_page_ink_threshold: float = Field(
+        default=0.002,
+        validation_alias="BLANK_PAGE_INK_THRESHOLD",
+        description="Minimum non-white pixel ratio for a page to be considered non-blank.",
+    )
+    blank_page_near_white_level: int = Field(
+        default=245,
+        validation_alias="BLANK_PAGE_NEAR_WHITE_LEVEL",
+        description="Near-white RGB channel threshold used by blank-page detection.",
+    )
     _no_proxy_regex: NoProxyRegex | None = PrivateAttr(default=None)
     _no_proxy_networks: tuple[NoProxyNetwork, ...] = PrivateAttr(default=())
     _httpx_clients: dict[str, object] = PrivateAttr(default_factory=dict)

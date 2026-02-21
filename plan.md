@@ -119,6 +119,11 @@
 - [ ] Add fallback key-to-page mapping when page metadata is sparse.
 - [x] Implement simple schema matching (heuristics + metadata index).
 - [x] Support extraction batching (`--chunk-pages`) for larger documents.
+- [ ] Detect and filter near-blank PDF pages (recto/verso scan artifacts) before extraction.
+- [ ] Build logical-to-physical page mapping so schema page numbers remain reliable when blank pages exist.
+- [ ] Add explicit page markers to multimodal prompts to anchor page numbering in PDF order.
+- [ ] Extend schema typing with richer semantic field types (phone, address, amount, etc.).
+- [ ] Add typed-field normalization hooks (phone, amount, address) and validation-friendly metadata.
 
 ### S3
 
@@ -151,6 +156,9 @@
 - [x] End-to-end tests: sample PDF extraction via CLI.
 - [x] End-to-end tests: one-pass and two-pass smoke coverage.
 - [x] End-to-end tests: regression for null sentinel and output contract.
+- [ ] Unit tests: blank-page detector and page-map heuristics.
+- [ ] Integration tests: extraction behavior with interleaved blank pages and schema page routing.
+- [ ] End-to-end tests: typed-field extraction flow (`phone`, `address`, `amount`) with null-sentinel invariants.
 
 ## Risks and Mitigations
 

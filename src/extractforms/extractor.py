@@ -5,12 +5,22 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from uuid import uuid4
+
+from pydantic import BaseModel, ConfigDict
 
 from extractforms.async_runner import run_async
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
 from extractforms.exceptions import ExtractionError
+from extractforms.field_normalization import normalize_typed_value
+from extractforms.page_filtering import (
+    PageSelectionAnalysis,
+    PageSelectionRequest,
+    analyze_page_selection,
+    build_schema_page_mapping,
+    filter_rendered_pages_to_nonblank,
+)
 from extractforms.pdf_render import render_pdf_pages
 from extractforms.pricing import merge_pricing_calls
 from extractforms.schema_store import SchemaStore
@@ -27,6 +37,19 @@ from extractforms.typing.models import (
 
 if TYPE_CHECKING:
     from extractforms.settings import Settings
+
+
+class _CollectSchemaValuesInput(BaseModel):
+    """Input payload for schema value collection."""
+
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
+
+    schema_spec: SchemaSpec
+    request: ExtractRequest
+    backend: object
+    pages: list[object]
+    use_page_groups: bool
+    schema_page_map: dict[int, int] | None
 
 
 def _confidence_rank(confidence: ConfidenceLevel) -> int:
@@ -238,60 +261,53 @@ async def _extract_values_for_page_groups(
 
 
 async def _collect_schema_values(
-    *,
-    schema: SchemaSpec,
-    request: ExtractRequest,
-    backend: MultimodalLLMBackend,
-    pages: list[RenderedPage],
-    use_page_groups: bool,
+    payload: _CollectSchemaValuesInput,
 ) -> tuple[list[FieldValue], list[PricingCall]]:
     """Collect extracted values and pricing calls for a schema.
 
     Args:
-        schema (SchemaSpec): Schema used for extraction.
-        request (ExtractRequest): Extraction request.
-        backend (MultimodalLLMBackend): Extraction backend.
-        pages (list[RenderedPage]): Rendered pages.
-        use_page_groups (bool): Whether to route paged keys to page-specific calls.
+        payload (_CollectSchemaValuesInput): Collection input payload.
 
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
     """
-    keys_by_page = _group_keys_by_page(schema)
-    non_paged_keys = [field.key for field in schema.fields if field.page is None]
+    backend = cast("MultimodalLLMBackend", payload.backend)
+    pages = cast("list[RenderedPage]", payload.pages)
 
-    if not keys_by_page or not use_page_groups:
-        keys = [field.key for field in schema.fields]
+    keys_by_page = _group_keys_by_page(payload.schema_spec, page_map=payload.schema_page_map)
+    non_paged_keys = [field.key for field in payload.schema_spec.fields if field.page is None]
+
+    if not keys_by_page or not payload.use_page_groups:
+        keys = [field.key for field in payload.schema_spec.fields]
         return await _extract_values_for_keys(
             backend=backend,
             pages=pages,
             keys=keys,
-            chunk_pages=request.chunk_pages,
-            extra_instructions=request.extra_instructions,
+            chunk_pages=payload.request.chunk_pages,
+            extra_instructions=payload.request.extra_instructions,
         )
 
     paged_values, paged_calls = await _extract_values_for_page_groups(
         backend=backend,
         pages=pages,
         keys_by_page=keys_by_page,
-        extra_instructions=request.extra_instructions,
+        extra_instructions=payload.request.extra_instructions,
     )
     non_paged_values, non_paged_calls = await _extract_values_for_keys(
         backend=backend,
         pages=pages,
         keys=non_paged_keys,
-        chunk_pages=request.chunk_pages,
-        extra_instructions=request.extra_instructions,
+        chunk_pages=payload.request.chunk_pages,
+        extra_instructions=payload.request.extra_instructions,
     )
 
     extracted_values = paged_values + non_paged_values
-    null_sentinel = _backend_null_sentinel(backend)
     extracted_non_blank = {
         value.key
         for value in extracted_values
-        if value.value.strip() and value.value.strip() not in {null_sentinel, "NULL"}
+        if value.value.strip() and value.value.strip() not in {_backend_null_sentinel(backend), "NULL"}
     }
-    paged_keys = {field.key for field in schema.fields if field.page is not None}
+    paged_keys = {field.key for field in payload.schema_spec.fields if field.page is not None}
     missing_paged_keys = sorted(paged_keys - extracted_non_blank)
 
     if not missing_paged_keys:
@@ -301,8 +317,8 @@ async def _collect_schema_values(
         backend=backend,
         pages=pages,
         keys=missing_paged_keys,
-        chunk_pages=request.chunk_pages,
-        extra_instructions=request.extra_instructions,
+        chunk_pages=payload.request.chunk_pages,
+        extra_instructions=payload.request.extra_instructions,
     )
     return (
         extracted_values + fallback_values,
@@ -348,7 +364,15 @@ def _build_result(
                 confidence=confidence,
             )
         else:
-            normalized_value = field_value
+            normalized_value = field_value.model_copy(
+                update={
+                    "value": normalize_typed_value(
+                        value=field_value.value,
+                        schema_field=schema_field,
+                        null_sentinel=null_sentinel,
+                    ),
+                },
+            )
 
         normalized.append(normalized_value)
         flat[normalized_value.key] = normalized_value.value
@@ -380,6 +404,7 @@ def infer_schema(request: ExtractRequest, settings: Settings) -> tuple[SchemaSpe
         page_end=request.page_end,
         max_pages=request.max_pages,
     )
+    pages = _filter_blank_pages_if_requested(pages=pages, request=request, settings=settings)
 
     backend = MultimodalLLMBackend(settings)
     schema, pricing = backend.infer_schema(pages)
@@ -392,11 +417,16 @@ def infer_schema(request: ExtractRequest, settings: Settings) -> tuple[SchemaSpe
     return schema_with_identity, pricing
 
 
-def _group_keys_by_page(schema: SchemaSpec) -> dict[int, list[str]]:
+def _group_keys_by_page(
+    schema: SchemaSpec,
+    *,
+    page_map: dict[int, int] | None = None,
+) -> dict[int, list[str]]:
     """Group schema keys by page.
 
     Args:
         schema (SchemaSpec): Schema to group.
+        page_map (dict[int, int] | None): Optional mapping from schema page numbers to PDF page numbers.
 
     Returns:
         dict[int, list[str]]: Keys by page.
@@ -405,7 +435,10 @@ def _group_keys_by_page(schema: SchemaSpec) -> dict[int, list[str]]:
     for field in schema.fields:
         if field.page is None:
             continue
-        keys_by_page.setdefault(field.page, []).append(field.key)
+        mapped_page = field.page
+        if page_map is not None:
+            mapped_page = page_map.get(field.page, field.page)
+        keys_by_page.setdefault(mapped_page, []).append(field.key)
     return keys_by_page
 
 
@@ -435,15 +468,26 @@ def extract_values(
         page_end=request.page_end,
         max_pages=request.max_pages,
     )
+    analysis = _analyze_page_selection(request=request, settings=settings)
+    pages = _filter_blank_pages_if_requested(
+        pages=pages,
+        request=request,
+        settings=settings,
+        analysis=analysis,
+    )
     backend = MultimodalLLMBackend(settings)
+    schema_page_map = build_schema_page_mapping(schema=schema, analysis=analysis)
 
     extracted_values, calls = run_async(
         _collect_schema_values(
-            schema=schema,
-            request=request,
-            backend=backend,
-            pages=pages,
-            use_page_groups=use_page_groups,
+            _CollectSchemaValuesInput(
+                schema_spec=schema,
+                request=request,
+                backend=backend,
+                pages=cast("list[object]", pages),
+                use_page_groups=use_page_groups,
+                schema_page_map=schema_page_map,
+            ),
         ),
     )
 
@@ -478,6 +522,77 @@ def extract_one_pass(
     ])
     result_with_pricing = result.model_copy(update={"pricing": merged_pricing})
     return result_with_pricing, merged_pricing
+
+
+def _analyze_page_selection(
+    *,
+    request: ExtractRequest,
+    settings: Settings,
+) -> PageSelectionAnalysis | None:
+    """Analyze selected pages to detect non-blank pages.
+
+    Args:
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+
+    Returns:
+        PageSelectionAnalysis | None: Page analysis payload when available.
+    """
+    ink_threshold = (
+        request.blank_page_ink_threshold
+        if request.blank_page_ink_threshold is not None
+        else settings.blank_page_ink_threshold
+    )
+    near_white_level = (
+        request.blank_page_near_white_level
+        if request.blank_page_near_white_level is not None
+        else settings.blank_page_near_white_level
+    )
+    return analyze_page_selection(
+        PageSelectionRequest(
+            pdf_path=request.input_path.as_posix(),
+            page_start=request.page_start,
+            page_end=request.page_end,
+            max_pages=request.max_pages,
+            ink_ratio_threshold=ink_threshold,
+            near_white_level=near_white_level,
+        ),
+    )
+
+
+def _filter_blank_pages_if_requested(
+    *,
+    pages: list[RenderedPage],
+    request: ExtractRequest,
+    settings: Settings,
+    analysis: PageSelectionAnalysis | None = None,
+) -> list[RenderedPage]:
+    """Filter rendered pages when blank-page filtering is enabled.
+
+    Args:
+        pages (list[RenderedPage]): Rendered pages.
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+        analysis (PageSelectionAnalysis | None): Optional precomputed page analysis.
+
+    Returns:
+        list[RenderedPage]: Filtered or original pages.
+    """
+    drop_blank = (
+        request.drop_blank_pages if request.drop_blank_pages is not None else settings.drop_blank_pages
+    )
+    if not drop_blank:
+        return pages
+
+    computed = (
+        analysis if analysis is not None else _analyze_page_selection(request=request, settings=settings)
+    )
+    if computed is None:
+        return pages
+    return filter_rendered_pages_to_nonblank(
+        pages,
+        nonblank_page_numbers=computed.nonblank_page_numbers,
+    )
 
 
 def match_schema(pdf: Path, schemas_store: SchemaStore, _settings: Settings) -> MatchResult:

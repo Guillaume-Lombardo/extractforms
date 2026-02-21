@@ -149,7 +149,16 @@ class MultimodalLLMBackend:
         response_format = schema_response_format("schema_response", _SchemaResponse.model_json_schema())
 
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        content.extend(self._image_content(page) for page in pages)
+        for page in pages:
+            content.extend(
+                (
+                    {
+                        "type": "text",
+                        "text": f"--- PAGE {page.page_number} (PDF order, 1-based) ---",
+                    },
+                    self._image_content(page),
+                ),
+            )
 
         payload = {
             "model": self._settings.openai_model,
@@ -217,7 +226,16 @@ class MultimodalLLMBackend:
         response_format = schema_response_format("values_response", _ValuesResponse.model_json_schema())
 
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
-        content.extend(self._image_content(page) for page in pages)
+        for page in pages:
+            content.extend(
+                (
+                    {
+                        "type": "text",
+                        "text": f"--- PAGE {page.page_number} (PDF order, 1-based) ---",
+                    },
+                    self._image_content(page),
+                ),
+            )
 
         payload = {
             "model": self._settings.openai_model,

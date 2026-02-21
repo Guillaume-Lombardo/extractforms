@@ -53,7 +53,32 @@ class FieldKind(_EnumMixin):
     DATE = "date"
     CHECKBOX = "checkbox"
     SELECT = "select"
+    EMAIL = "email"
+    PHONE = "phone"
+    IBAN = "iban"
+    ADDRESS = "address"
+    AMOUNT = "amount"
+    TABLE_CELL = "table_cell"
+    OTHER = "other"
     UNKNOWN = "unknown"
+
+
+class FieldSemanticType(_EnumMixin):
+    """Supported semantic field types."""
+
+    PERSON_NAME = "person_name"
+    COMPANY_NAME = "company_name"
+    PHONE = "phone"
+    EMAIL = "email"
+    ADDRESS = "address"
+    POSTAL_CODE = "postal_code"
+    CITY = "city"
+    COUNTRY = "country"
+    IBAN = "iban"
+    AMOUNT = "amount"
+    PERCENTAGE = "percentage"
+    IDENTIFIER = "identifier"
+    OTHER = "other"
 
 
 class ConfidenceLevel(_EnumMixin):

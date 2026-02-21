@@ -1,6 +1,6 @@
 """Typing-centric domain modules."""
 
-from extractforms.typing.enums import ConfidenceLevel, FieldKind, PassMode
+from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
 from extractforms.typing.models import (
     ExtractionResult,
     ExtractRequest,
@@ -20,6 +20,7 @@ __all__ = [
     "ExtractionResult",
     "ExtractorBackend",
     "FieldKind",
+    "FieldSemanticType",
     "FieldValue",
     "MatchResult",
     "PageSource",
