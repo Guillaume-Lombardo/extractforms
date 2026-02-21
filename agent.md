@@ -23,6 +23,7 @@ Deliver high-quality, maintainable increments for a Python package and its CLI/A
 - Prefer small, testable increments aligned with `plan.md` phases.
 - Keep docs, skills, and plan synchronized with implementation.
 - Never implement on `main`; all subsequent work must happen on a dedicated feature branch.
+- Never open pull requests as draft; PRs must be created directly in `ready for review` state.
 - For each PR, monitor CI and Copilot review by polling every 60 seconds until:
   - CI is finished (not pending), and
   - Copilot review has been posted (or is explicitly absent for this PR).

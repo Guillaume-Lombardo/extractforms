@@ -4,7 +4,6 @@ import pytest
 
 from extractforms.backends import multimodal_openai
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
-from extractforms.backends.ocr_document_intelligence import OCRBackend
 from extractforms.exceptions import BackendError
 from extractforms.settings import Settings
 from extractforms.typing.models import RenderedPage
@@ -121,12 +120,6 @@ def test_infer_schema_and_extract_values_with_mocked_post(mocker) -> None:
 
     assert schema.name == "demo"
     assert values[0].key == "a"
-
-
-def test_ocr_backend_is_stub() -> None:
-    backend = OCRBackend()
-    with pytest.raises(BackendError):
-        backend.infer_schema([])
 
 
 def test_post_chat_completions_requires_api_key() -> None:

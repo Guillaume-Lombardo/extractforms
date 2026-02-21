@@ -75,6 +75,7 @@ This template includes AI delivery tooling:
 - All future work must start by creating or switching to a dedicated non-`main` branch.
 - Do not develop features directly on the main branch.
 - End every run, phase, and feature delivery with a GitHub Pull Request.
+- Never create PRs in draft state; open PRs directly as `ready for review` so Copilot review can start immediately.
 - Use PR review and CI as mandatory validation before merge.
 - For every created PR, wait for CI completion and Copilot review publication before finalizing.
 - Poll PR status every 60 seconds (`gh pr checks` + `gh pr view ...reviews/comments`) for up to 20 cycles (20 minutes) until:
