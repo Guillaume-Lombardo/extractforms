@@ -77,10 +77,11 @@ This template includes AI delivery tooling:
 - End every run, phase, and feature delivery with a GitHub Pull Request.
 - Use PR review and CI as mandatory validation before merge.
 - For every created PR, wait for CI completion and Copilot review publication before finalizing.
-- Poll PR status every 60 seconds (`gh pr checks` + `gh pr view ...reviews/comments`) until:
+- Poll PR status every 60 seconds (`gh pr checks` + `gh pr view ...reviews/comments`) for up to 20 cycles (20 minutes) until:
   - CI is no longer pending, and
   - at least one Copilot review is present (or Copilot definitively reports no review for this PR).
 - Do not stop polling right after CI success if Copilot review is still missing.
+- As soon as a review appears, process it immediately (address pertinent comments in code/tests/docs, and justify non-pertinent comments in PR discussion) without waiting for remaining cycles.
 - Evaluate review comments for technical relevance; address pertinent comments in code/tests/docs and explicitly justify non-pertinent comments in the PR discussion.
 - Before each push/PR, run one explicit dead-code pass and remove unused code/paths/imports no longer referenced.
 - Before every push/PR, ensure docs/config bootstrap are synchronized with code changes:
