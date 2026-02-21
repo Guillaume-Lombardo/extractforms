@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from extractforms import cli
-from extractforms.typing.enums import PassMode
+from extractforms.typing.enums import ExtractionBackendType, PassMode
 from extractforms.settings import Settings
 
 
@@ -28,6 +28,7 @@ def test_extract_request_uses_one_schema_mode_when_schema_is_provided() -> None:
         output_path=Path("out.json"),
         mode=PassMode.TWO_PASS,
         no_cache=False,
+        backend=None,
         dpi=150,
         image_format="png",
         page_start=None,
@@ -44,6 +45,29 @@ def test_extract_request_uses_one_schema_mode_when_schema_is_provided() -> None:
     assert request.mode == PassMode.ONE_SCHEMA_PASS
 
 
+def test_extract_request_supports_backend_override() -> None:
+    input_pdf = Path(__file__)
+    args = Namespace(
+        input_path=input_pdf,
+        output_path=Path("out.json"),
+        mode=PassMode.TWO_PASS,
+        no_cache=False,
+        backend=ExtractionBackendType.OCR,
+        dpi=150,
+        image_format="png",
+        page_start=None,
+        page_end=None,
+        max_pages=None,
+        chunk_pages=1,
+        schema_id=None,
+        schema_path=None,
+        match_schema=False,
+        extra_instructions=None,
+    )
+    request = cli._build_extract_request(args)
+    assert request.backend == ExtractionBackendType.OCR
+
+
 def test_main_runs_extract_flow(mocker, tmp_path: Path) -> None:
     output_path = tmp_path / "result.json"
     input_pdf = tmp_path / "input.pdf"
@@ -56,6 +80,7 @@ def test_main_runs_extract_flow(mocker, tmp_path: Path) -> None:
         output_path=output_path,
         mode=PassMode.TWO_PASS,
         no_cache=False,
+        backend=None,
         dpi=200,
         image_format="png",
         page_start=None,
@@ -87,6 +112,7 @@ def test_extract_request_includes_blank_page_options() -> None:
         output_path=Path("out.json"),
         mode=PassMode.TWO_PASS,
         no_cache=False,
+        backend=None,
         dpi=150,
         image_format="png",
         page_start=None,

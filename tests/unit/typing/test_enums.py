@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from extractforms.typing.enums import ConfidenceLevel, FieldSemanticType
+from extractforms.typing.enums import ConfidenceLevel, ExtractionBackendType, FieldSemanticType
 
 
 def test_confidence_level_from_str() -> None:
@@ -16,3 +16,7 @@ def test_confidence_level_from_str_raises_on_invalid_value() -> None:
 
 def test_field_semantic_type_from_str() -> None:
     assert FieldSemanticType.from_str("phone") == FieldSemanticType.PHONE
+
+
+def test_extraction_backend_type_from_str() -> None:
+    assert ExtractionBackendType.from_str("ocr") == ExtractionBackendType.OCR

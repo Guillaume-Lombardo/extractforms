@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
+import time
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import uuid4
 
 from extractforms.async_runner import run_async
 from extractforms.backends.multimodal_openai import MultimodalLLMBackend
+from extractforms.backends.ocr_document_intelligence import OCRBackend
+from extractforms.backends.ocr_text_normalizer import OCRTextLLMNormalizer
 from extractforms.exceptions import ExtractionError
 from extractforms.pdf_render import render_pdf_pages
 from extractforms.pricing import merge_pricing_calls
@@ -20,7 +24,7 @@ from extractforms.processing.page_selection import (
     filter_rendered_pages_to_nonblank,
 )
 from extractforms.schema_store import SchemaStore
-from extractforms.typing.enums import ConfidenceLevel, PassMode
+from extractforms.typing.enums import ConfidenceLevel, ExtractionBackendType, PassMode
 from extractforms.typing.models import (
     CollectSchemaValuesInput,
     ExtractionResult,
@@ -35,7 +39,9 @@ from extractforms.typing.models import (
 )
 
 if TYPE_CHECKING:
+    from extractforms.backends.ocr_document_intelligence import OCRPageProvider
     from extractforms.settings import Settings
+    from extractforms.typing.protocol import ExtractorBackend
 
 
 def _confidence_rank(confidence: ConfidenceLevel) -> int:
@@ -80,11 +86,11 @@ def _select_better_value(current: FieldValue | None, candidate: FieldValue) -> F
     return current
 
 
-def _backend_concurrency(backend: MultimodalLLMBackend) -> int:
+def _backend_concurrency(backend: object) -> int:
     """Resolve backend concurrency setting with a safe fallback.
 
     Args:
-        backend (MultimodalLLMBackend): Backend instance.
+        backend (object): Backend instance.
 
     Returns:
         int: Effective concurrency (minimum 1).
@@ -101,11 +107,11 @@ def _backend_concurrency(backend: MultimodalLLMBackend) -> int:
     return max(concurrency, 1)
 
 
-def _backend_null_sentinel(backend: MultimodalLLMBackend) -> str:
+def _backend_null_sentinel(backend: object) -> str:
     """Resolve backend null sentinel with a safe fallback.
 
     Args:
-        backend (MultimodalLLMBackend): Backend instance.
+        backend (object): Backend instance.
 
     Returns:
         str: Null sentinel.
@@ -122,7 +128,7 @@ def _backend_null_sentinel(backend: MultimodalLLMBackend) -> str:
 
 async def _extract_values_for_keys(
     *,
-    backend: MultimodalLLMBackend,
+    backend: ExtractorBackend,
     pages: list[RenderedPage],
     keys: list[str],
     chunk_pages: int,
@@ -131,7 +137,7 @@ async def _extract_values_for_keys(
     """Extract values for a key set with optional page chunking.
 
     Args:
-        backend (MultimodalLLMBackend): Extraction backend.
+        backend (Any): Extraction backend.
         pages (list[RenderedPage]): Rendered pages.
         keys (list[str]): Keys to extract.
         chunk_pages (int): Requested chunk size.
@@ -183,7 +189,7 @@ async def _extract_values_for_keys(
 
 async def _extract_values_for_page_groups(
     *,
-    backend: MultimodalLLMBackend,
+    backend: ExtractorBackend,
     pages: list[RenderedPage],
     keys_by_page: dict[int, list[str]],
     extra_instructions: str | None,
@@ -191,7 +197,7 @@ async def _extract_values_for_page_groups(
     """Extract values for page-scoped key groups.
 
     Args:
-        backend (MultimodalLLMBackend): Extraction backend.
+        backend (Any): Extraction backend.
         pages (list[RenderedPage]): Rendered pages.
         keys_by_page (dict[int, list[str]]): Keys grouped by page number.
         extra_instructions (str | None): Additional prompt instructions.
@@ -245,7 +251,7 @@ async def _collect_schema_values(
     Returns:
         tuple[list[FieldValue], list[PricingCall]]: Extracted values and pricing calls.
     """
-    backend = cast("MultimodalLLMBackend", payload.backend)
+    backend = cast("ExtractorBackend", payload.backend)
     pages = cast("list[RenderedPage]", payload.pages)
 
     keys_by_page = _build_routed_keys_by_page(
@@ -350,14 +356,14 @@ def _missing_paged_keys(
     *,
     extracted_values: list[FieldValue],
     keys_by_page: dict[int, list[str]],
-    backend: MultimodalLLMBackend,
+    backend: object,
 ) -> list[str]:
     """Return page-routed keys still unresolved after page-scoped extraction.
 
     Args:
         extracted_values (list[FieldValue]): Values gathered so far.
         keys_by_page (dict[int, list[str]]): Keys that were attempted with page routing.
-        backend (MultimodalLLMBackend): Backend instance for null-sentinel resolution.
+        backend (object): Backend instance for null-sentinel resolution.
 
     Returns:
         list[str]: Routed keys still missing usable values.
@@ -430,6 +436,124 @@ def _build_result(
     )
 
 
+def _resolve_backend_type(request: ExtractRequest, settings: Settings) -> ExtractionBackendType:
+    """Resolve effective backend type from request override or settings default.
+
+    Args:
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+
+    Returns:
+        ExtractionBackendType: Effective backend selection.
+    """
+    if request.backend is not None:
+        return request.backend
+    return settings.extraction_backend
+
+
+def _load_dotted_object(dotted_path: str) -> object:
+    """Load object from a dotted path.
+
+    Args:
+        dotted_path (str): Dotted object path (`module.attr`).
+
+    Raises:
+        ExtractionError: If path cannot be imported.
+
+    Returns:
+        object: Imported object.
+    """
+    if "." not in dotted_path:
+        raise ExtractionError(message=f"OCR_PROVIDER_FACTORY must be dotted path, got: {dotted_path}")
+    module_name, attr_name = dotted_path.rsplit(".", 1)
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as exc:
+        raise ExtractionError(message=f"Cannot import OCR provider module: {module_name}") from exc
+    try:
+        return getattr(module, attr_name)
+    except AttributeError as exc:
+        raise ExtractionError(message=f"Cannot resolve OCR provider factory: {dotted_path}") from exc
+
+
+def _build_ocr_provider(*, request: ExtractRequest, settings: Settings) -> OCRPageProvider:
+    """Build OCR provider using configured factory.
+
+    Args:
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+
+    Raises:
+        ExtractionError: If factory is not configured or callable.
+
+    Returns:
+        OCRPageProvider: OCR provider instance.
+    """
+    dotted_path = settings.ocr_provider_factory
+    if not dotted_path:
+        raise ExtractionError(
+            message=(
+                "OCR backend selected but OCR_PROVIDER_FACTORY is not configured. "
+                "Set a dotted factory path returning an OCR page provider."
+            ),
+        )
+    factory = _load_dotted_object(dotted_path)
+    if not callable(factory):
+        raise ExtractionError(message=f"OCR provider factory is not callable: {dotted_path}")
+    typed_factory = cast("Any", factory)
+
+    try:
+        provider = typed_factory(settings=settings, request=request)
+    except TypeError:
+        try:
+            provider = typed_factory(settings)
+        except TypeError:
+            provider = typed_factory()
+    return cast("OCRPageProvider", provider)
+
+
+def _build_extraction_backend(
+    *,
+    request: ExtractRequest,
+    settings: Settings,
+) -> tuple[ExtractorBackend, ExtractionBackendType]:
+    """Build extraction backend according to runtime selection.
+
+    Args:
+        request (ExtractRequest): Extraction request.
+        settings (Settings): Runtime settings.
+
+    Returns:
+        tuple[ExtractorBackend, ExtractionBackendType]: Backend instance and selected backend type.
+    """
+    backend_type = _resolve_backend_type(request, settings)
+    if backend_type == ExtractionBackendType.MULTIMODAL:
+        return MultimodalLLMBackend(settings), backend_type
+
+    text_normalizer = OCRTextLLMNormalizer(settings) if settings.ocr_enable_text_normalization else None
+    backend = OCRBackend(
+        provider=_build_ocr_provider(request=request, settings=settings),
+        null_sentinel=settings.null_sentinel,
+        text_normalizer=text_normalizer,
+    )
+    return backend, backend_type
+
+
+def _augment_result_metadata(result: ExtractionResult, updates: dict[str, object]) -> ExtractionResult:
+    """Merge metadata updates into result.
+
+    Args:
+        result (ExtractionResult): Base result.
+        updates (dict[str, object]): Metadata updates.
+
+    Returns:
+        ExtractionResult: Result with merged metadata.
+    """
+    metadata = dict(result.metadata)
+    metadata.update(updates)
+    return result.model_copy(update={"metadata": metadata})
+
+
 def infer_schema(request: ExtractRequest, settings: Settings) -> tuple[SchemaSpec, PricingCall | None]:
     """Infer schema from a document.
 
@@ -451,12 +575,15 @@ def infer_schema(request: ExtractRequest, settings: Settings) -> tuple[SchemaSpe
     )
     pages = _filter_blank_pages_if_requested(pages=pages, request=request, settings=settings)
 
-    backend = MultimodalLLMBackend(settings)
+    backend, _ = _build_extraction_backend(request=request, settings=settings)
     schema, pricing = backend.infer_schema(pages)
+    schema_id = str(uuid4())
     schema_with_identity = SchemaSpec(
-        id=str(uuid4()),
+        id=schema_id,
         name=schema.name or request.input_path.stem,
         fingerprint=fingerprint,
+        version=schema.version,
+        schema_family_id=schema.schema_family_id or schema_id,
         fields=schema.fields,
     )
     return schema_with_identity, pricing
@@ -548,6 +675,7 @@ def extract_values(
     Returns:
         tuple[ExtractionResult, PricingCall | None]: Result and pricing.
     """
+    started_at = time.perf_counter()
     pages = render_pdf_pages(
         request.input_path,
         dpi=request.dpi,
@@ -563,7 +691,7 @@ def extract_values(
         settings=settings,
         analysis=analysis,
     )
-    backend = MultimodalLLMBackend(settings)
+    backend, backend_type = _build_extraction_backend(request=request, settings=settings)
     schema_page_map = build_schema_page_mapping(schema=schema, analysis=analysis)
 
     extracted_values, calls = run_async(
@@ -585,6 +713,25 @@ def extract_values(
         values=extracted_values,
         null_sentinel=settings.null_sentinel,
         pricing=pricing,
+    )
+    elapsed_ms = int((time.perf_counter() - started_at) * 1000)
+    result = _augment_result_metadata(
+        result,
+        {
+            "backend": backend_type.value,
+            "pages_processed": len(pages),
+            "model_calls": len(calls),
+            "schema_version": schema.version,
+            "schema_family_id": schema.schema_family_id,
+            "duration_ms": elapsed_ms,
+            "pricing": {
+                "provider": pricing.provider if pricing else None,
+                "model": pricing.model if pricing else None,
+                "input_tokens": pricing.input_tokens if pricing else None,
+                "output_tokens": pricing.output_tokens if pricing else None,
+                "total_cost_usd": pricing.total_cost_usd if pricing else None,
+            },
+        },
     )
     return result, pricing
 
@@ -769,7 +916,7 @@ def _run_two_pass(
     request: ExtractRequest,
     settings: Settings,
     store: SchemaStore,
-) -> ExtractionResult:
+) -> tuple[ExtractionResult, bool]:
     """Handle TWO_PASS extraction mode.
 
     Args:
@@ -778,7 +925,7 @@ def _run_two_pass(
         store (SchemaStore): Schema store.
 
     Returns:
-        ExtractionResult: Extraction result.
+        tuple[ExtractionResult, bool]: Extraction result and cache-hit flag.
     """
     if request.match_schema or request.use_cache:
         fingerprint = SchemaStore.fingerprint_pdf(request.input_path)
@@ -786,12 +933,12 @@ def _run_two_pass(
         if matched.matched and matched.schema_id:
             cached = _extract_for_schema_id(store, matched.schema_id, request, settings)
             if cached is not None:
-                return cached
+                return cached, True
 
     schema, _ = infer_schema(request, settings)
     if request.use_cache:
         store.save(schema)
-    return _extract_with_schema(schema, request, settings)
+    return _extract_with_schema(schema, request, settings), False
 
 
 def persist_result(result: ExtractionResult, path: Path) -> None:
@@ -822,17 +969,20 @@ def run_extract(request: ExtractRequest, settings: Settings) -> ExtractionResult
 
     if request.schema_path:
         schema = store.load(request.schema_path)
-        return _extract_with_schema(schema, request, settings)
+        result = _extract_with_schema(schema, request, settings)
+        return _augment_result_metadata(result, {"mode": request.mode.value, "cache_hit": False})
 
     if request.mode == PassMode.ONE_PASS:
         result, _ = extract_one_pass(request, settings)
-        return result
+        return _augment_result_metadata(result, {"mode": request.mode.value, "cache_hit": False})
 
     if request.mode == PassMode.ONE_SCHEMA_PASS:
-        return _run_one_schema_pass(request, settings, store)
+        result = _run_one_schema_pass(request, settings, store)
+        return _augment_result_metadata(result, {"mode": request.mode.value, "cache_hit": False})
 
     if request.mode == PassMode.TWO_PASS:
-        return _run_two_pass(request, settings, store)
+        result, cache_hit = _run_two_pass(request, settings, store)
+        return _augment_result_metadata(result, {"mode": request.mode.value, "cache_hit": cache_hit})
 
     raise ExtractionError(message=f"Unsupported mode: {request.mode}")
 

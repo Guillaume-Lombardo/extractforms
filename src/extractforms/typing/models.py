@@ -8,7 +8,13 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from extractforms.exceptions import ModelMismatchError
-from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
+from extractforms.typing.enums import (
+    ConfidenceLevel,
+    ExtractionBackendType,
+    FieldKind,
+    FieldSemanticType,
+    PassMode,
+)
 
 _ = Path
 
@@ -36,6 +42,8 @@ class SchemaSpec(BaseModel):
     id: str
     name: str
     fingerprint: str
+    version: int = 1
+    schema_family_id: str | None = None
     fields: list[SchemaField]
 
 
@@ -98,6 +106,7 @@ class ExtractionResult(BaseModel):
     flat: dict[str, str]
     schema_fields_count: int
     pricing: PricingCall | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExtractRequest(BaseModel):
@@ -108,6 +117,7 @@ class ExtractRequest(BaseModel):
     input_path: Path
     output_path: Path | None = None
     mode: PassMode = PassMode.TWO_PASS
+    backend: ExtractionBackendType | None = None
     use_cache: bool = True
     dpi: int = 200
     image_format: str = "png"

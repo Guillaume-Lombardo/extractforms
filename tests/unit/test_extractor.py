@@ -5,7 +5,13 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from extractforms import extractor
 from extractforms.exceptions import ExtractionError
-from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
+from extractforms.typing.enums import (
+    ConfidenceLevel,
+    ExtractionBackendType,
+    FieldKind,
+    FieldSemanticType,
+    PassMode,
+)
 from extractforms.extractor import (
     extract_one_pass,
     extract_values,
@@ -13,8 +19,8 @@ from extractforms.extractor import (
     result_to_json_dict,
     run_extract,
 )
-from extractforms.typing.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
 from extractforms.settings import Settings
+from extractforms.typing.models import ExtractRequest, ExtractionResult, FieldValue, SchemaField, SchemaSpec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -550,3 +556,87 @@ def test_extract_values_applies_typed_value_normalization(monkeypatch, tmp_path:
     result, _ = extract_values(schema, request, Settings(null_sentinel="NULL"))
 
     assert result.flat["phone"] == "+33612345678"
+
+
+def test_extract_values_uses_ocr_backend_from_settings(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        version=1,
+        schema_family_id="family",
+        fields=[SchemaField(key="a", label="A", page=1)],
+    )
+
+    class _FakeOCRBackend:
+        def __init__(self, provider=None, null_sentinel="NULL", text_normalizer=None) -> None:
+            _ = (provider, null_sentinel, text_normalizer)
+
+        def extract_values(self, pages, keys, extra_instructions=None):
+            _ = (pages, keys, extra_instructions)
+            return [FieldValue(key="a", value="ocr", page=1, confidence=ConfidenceLevel.HIGH)], None
+
+    page = type("Page", (), {"page_number": 1})()
+    monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page])
+    monkeypatch.setattr("extractforms.extractor.OCRBackend", _FakeOCRBackend)
+    monkeypatch.setattr("extractforms.extractor._build_ocr_provider", lambda **kwargs: object())
+
+    settings = Settings(null_sentinel="NULL")
+    settings.extraction_backend = ExtractionBackendType.OCR
+    result, _ = extract_values(schema, _request(pdf), settings)
+
+    assert result.flat["a"] == "ocr"
+    assert result.metadata["backend"] == "ocr"
+
+
+def test_run_extract_two_pass_sets_cache_hit_metadata(monkeypatch, tmp_path: Path) -> None:
+    pdf = tmp_path / "doc.pdf"
+    pdf.write_bytes(b"doc")
+
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="abc",
+        version=1,
+        schema_family_id="id",
+        fields=[SchemaField(key="a", label="A")],
+    )
+
+    class _Store:
+        def __init__(self, root: Path) -> None:
+            self.root = root
+
+        @staticmethod
+        def fingerprint_pdf(path: Path) -> str:
+            _ = path
+            return "abc"
+
+        def match_schema(self, fingerprint: str):
+            _ = fingerprint
+            return type("Match", (), {"matched": True, "schema_id": "id"})()
+
+        def list_schemas(self):
+            return [self.root / "schema.json"]
+
+        def load(self, path: Path) -> SchemaSpec:
+            _ = path
+            return schema
+
+    monkeypatch.setattr("extractforms.extractor.SchemaStore", _Store)
+    monkeypatch.setattr(
+        "extractforms.extractor.extract_values",
+        lambda *args, **kwargs: (
+            ExtractionResult(
+                fields=[FieldValue(key="a", value="v", confidence=ConfidenceLevel.HIGH)],
+                flat={"a": "v"},
+                schema_fields_count=1,
+                pricing=None,
+                metadata={},
+            ),
+            None,
+        ),
+    )
+    result = run_extract(_request(pdf, PassMode.TWO_PASS), Settings(schema_cache_dir=str(tmp_path)))
+    assert result.metadata["cache_hit"] is True

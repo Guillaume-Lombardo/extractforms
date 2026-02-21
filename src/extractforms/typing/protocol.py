@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from extractforms.typing.models import FieldValue, RenderedPage, SchemaSpec
+    from extractforms.typing.models import FieldValue, PricingCall, RenderedPage, SchemaSpec
 
 
 class PageSource(Protocol):
@@ -37,23 +37,30 @@ class PageSource(Protocol):
 class ExtractorBackend(Protocol):
     """Extraction backend interface."""
 
-    def infer_schema(self, pages: list[RenderedPage]) -> SchemaSpec:
+    def infer_schema(self, pages: list[RenderedPage]) -> tuple[SchemaSpec, PricingCall | None]:
         """Infer schema for a document.
 
         Args:
             pages: Rendered pages.
 
         Returns:
-            SchemaSpec: Inferred schema.
+            tuple[SchemaSpec, PricingCall | None]: Inferred schema and optional pricing.
         """
 
-    def extract_values(self, pages: list[RenderedPage], keys: list[str]) -> list[FieldValue]:
+    def extract_values(
+        self,
+        pages: list[RenderedPage],
+        keys: list[str],
+        *,
+        extra_instructions: str | None = None,
+    ) -> tuple[list[FieldValue], PricingCall | None]:
         """Extract values for selected keys.
 
         Args:
             pages: Rendered pages.
             keys: Keys to extract.
+            extra_instructions: Optional runtime instructions.
 
         Returns:
-            list[FieldValue]: Extracted key/value entries.
+            tuple[list[FieldValue], PricingCall | None]: Extracted values and optional pricing.
         """
