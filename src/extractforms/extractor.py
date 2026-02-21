@@ -248,8 +248,14 @@ async def _collect_schema_values(
     backend = cast("MultimodalLLMBackend", payload.backend)
     pages = cast("list[RenderedPage]", payload.pages)
 
-    keys_by_page = _group_keys_by_page(payload.schema_spec, page_map=payload.schema_page_map)
-    non_paged_keys = [field.key for field in payload.schema_spec.fields if field.page is None]
+    keys_by_page = _build_routed_keys_by_page(
+        payload.schema_spec,
+        page_map=payload.schema_page_map,
+    )
+    unresolved_non_paged = _unresolved_sparse_keys(
+        payload.schema_spec,
+        page_map=payload.schema_page_map,
+    )
 
     if not keys_by_page or not payload.use_page_groups:
         keys = [field.key for field in payload.schema_spec.fields]
@@ -270,24 +276,22 @@ async def _collect_schema_values(
     non_paged_values, non_paged_calls = await _extract_values_for_keys(
         backend=backend,
         pages=pages,
-        keys=non_paged_keys,
+        keys=unresolved_non_paged,
         chunk_pages=payload.request.chunk_pages,
         extra_instructions=payload.request.extra_instructions,
     )
 
     extracted_values = paged_values + non_paged_values
-    extracted_non_blank = {
-        value.key
-        for value in extracted_values
-        if value.value.strip() and value.value.strip() not in {_backend_null_sentinel(backend), "NULL"}
-    }
-    paged_keys = {field.key for field in payload.schema_spec.fields if field.page is not None}
-    missing_paged_keys = sorted(paged_keys - extracted_non_blank)
+    missing_paged_keys = _missing_paged_keys(
+        extracted_values=extracted_values,
+        keys_by_page=keys_by_page,
+        backend=backend,
+    )
 
     if not missing_paged_keys:
         return extracted_values, paged_calls + non_paged_calls
 
-    fallback_values, fallback_calls = await _extract_values_for_keys(
+    fallback = await _extract_values_for_keys(
         backend=backend,
         pages=pages,
         keys=missing_paged_keys,
@@ -295,9 +299,76 @@ async def _collect_schema_values(
         extra_instructions=payload.request.extra_instructions,
     )
     return (
-        extracted_values + fallback_values,
-        paged_calls + non_paged_calls + fallback_calls,
+        extracted_values + fallback[0],
+        paged_calls + non_paged_calls + fallback[1],
     )
+
+
+def _build_routed_keys_by_page(
+    schema: SchemaSpec,
+    *,
+    page_map: dict[int, int] | None = None,
+) -> dict[int, list[str]]:
+    """Build page-key routing from explicit and inferred schema page metadata.
+
+    Args:
+        schema (SchemaSpec): Schema to route.
+        page_map (dict[int, int] | None): Optional mapping from schema page numbers to PDF page numbers.
+
+    Returns:
+        dict[int, list[str]]: Routed keys by PDF page number.
+    """
+    keys_by_page = _group_keys_by_page(schema, page_map=page_map)
+    inferred_by_page, _ = _infer_sparse_keys_by_page(schema, page_map=page_map)
+    for page_number, keys in inferred_by_page.items():
+        keys_by_page.setdefault(page_number, [])
+        for key in keys:
+            if key not in keys_by_page[page_number]:
+                keys_by_page[page_number].append(key)
+    return keys_by_page
+
+
+def _unresolved_sparse_keys(
+    schema: SchemaSpec,
+    *,
+    page_map: dict[int, int] | None = None,
+) -> list[str]:
+    """Return sparse keys that cannot be attached to a page.
+
+    Args:
+        schema (SchemaSpec): Schema to inspect.
+        page_map (dict[int, int] | None): Optional mapping from schema page numbers to PDF page numbers.
+
+    Returns:
+        list[str]: Keys that remain non-routable by page metadata.
+    """
+    _, unresolved = _infer_sparse_keys_by_page(schema, page_map=page_map)
+    return unresolved
+
+
+def _missing_paged_keys(
+    *,
+    extracted_values: list[FieldValue],
+    keys_by_page: dict[int, list[str]],
+    backend: MultimodalLLMBackend,
+) -> list[str]:
+    """Return page-routed keys still unresolved after page-scoped extraction.
+
+    Args:
+        extracted_values (list[FieldValue]): Values gathered so far.
+        keys_by_page (dict[int, list[str]]): Keys that were attempted with page routing.
+        backend (MultimodalLLMBackend): Backend instance for null-sentinel resolution.
+
+    Returns:
+        list[str]: Routed keys still missing usable values.
+    """
+    extracted_non_blank = {
+        value.key
+        for value in extracted_values
+        if value.value.strip() and value.value.strip() not in {_backend_null_sentinel(backend), "NULL"}
+    }
+    paged_keys = {key for keys in keys_by_page.values() for key in keys}
+    return sorted(paged_keys - extracted_non_blank)
 
 
 def _build_result(
@@ -414,6 +485,49 @@ def _group_keys_by_page(
             mapped_page = page_map.get(field.page, field.page)
         keys_by_page.setdefault(mapped_page, []).append(field.key)
     return keys_by_page
+
+
+def _infer_sparse_keys_by_page(
+    schema: SchemaSpec,
+    *,
+    page_map: dict[int, int] | None = None,
+) -> tuple[dict[int, list[str]], list[str]]:
+    """Infer page routing for fields without explicit page metadata.
+
+    Fields with no `page` are attached to the nearest field that has page metadata
+    based on schema order. Remaining keys are returned when no anchor page exists.
+
+    Args:
+        schema (SchemaSpec): Schema to inspect.
+        page_map (dict[int, int] | None): Optional mapping from schema page numbers to PDF page numbers.
+
+    Returns:
+        tuple[dict[int, list[str]], list[str]]: Inferred keys by page and unresolved keys.
+    """
+    anchored_positions: list[tuple[int, int]] = []
+    for index, field in enumerate(schema.fields):
+        if field.page is None:
+            continue
+        mapped_page = page_map.get(field.page, field.page) if page_map is not None else field.page
+        anchored_positions.append((index, mapped_page))
+
+    unresolved: list[str] = []
+    inferred_by_page: dict[int, list[str]] = {}
+    if not anchored_positions:
+        return inferred_by_page, [field.key for field in schema.fields if field.page is None]
+
+    for index, field in enumerate(schema.fields):
+        if field.page is not None:
+            continue
+
+        nearest_index, nearest_page = min(
+            anchored_positions,
+            key=lambda anchored: abs(anchored[0] - index),
+        )
+        _ = nearest_index
+        inferred_by_page.setdefault(nearest_page, []).append(field.key)
+
+    return inferred_by_page, unresolved
 
 
 def extract_values(

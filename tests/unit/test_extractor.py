@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from extractforms import extractor
 from extractforms.exceptions import ExtractionError
 from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
 from extractforms.extractor import (
@@ -308,11 +309,17 @@ def test_extract_values_handles_mixed_paged_and_non_paged_keys(monkeypatch, tmp_
             self.settings = settings
 
         def extract_values(self, pages, keys, extra_instructions=None):
-            if keys == ["paged_key"]:
-                return [
+            _ = (pages, extra_instructions)
+            values: list[FieldValue] = []
+            if "paged_key" in keys:
+                values.append(
                     FieldValue(key="paged_key", value="paged", page=1, confidence=ConfidenceLevel.HIGH),
-                ], None
-            return [FieldValue(key="free_key", value="free", page=2, confidence=ConfidenceLevel.MEDIUM)], None
+                )
+            if "free_key" in keys:
+                values.append(
+                    FieldValue(key="free_key", value="free", page=1, confidence=ConfidenceLevel.MEDIUM),
+                )
+            return values, None
 
     page1 = type("Page", (), {"page_number": 1})()
     page2 = type("Page", (), {"page_number": 2})()
@@ -325,6 +332,25 @@ def test_extract_values_handles_mixed_paged_and_non_paged_keys(monkeypatch, tmp_
 
     assert result.flat["paged_key"] == "paged"
     assert result.flat["free_key"] == "free"
+
+
+def test_infer_sparse_keys_by_page_uses_nearest_anchored_field() -> None:
+    schema = SchemaSpec(
+        id="id",
+        name="name",
+        fingerprint="fp",
+        fields=[
+            SchemaField(key="a", label="A", page=1),
+            SchemaField(key="x", label="X"),
+            SchemaField(key="y", label="Y"),
+            SchemaField(key="b", label="B", page=3),
+        ],
+    )
+
+    inferred, unresolved = extractor._infer_sparse_keys_by_page(schema)
+
+    assert inferred == {1: ["x"], 3: ["y"]}
+    assert unresolved == []
 
 
 def test_extract_values_uses_chunk_pages_for_non_paged_keys(monkeypatch, tmp_path: Path) -> None:
