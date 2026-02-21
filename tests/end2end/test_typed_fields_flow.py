@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from extractforms.extractor import run_extract
 from extractforms.settings import Settings
 from extractforms.typing.enums import ConfidenceLevel, FieldKind, FieldSemanticType, PassMode
-from extractforms.typing.models import ExtractRequest, FieldValue, SchemaField, SchemaSpec
+from extractforms.typing.models import ExtractRequest, FieldValue, RenderedPage, SchemaField, SchemaSpec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -73,7 +73,7 @@ def test_typed_fields_extraction_flow_applies_normalization_and_null_sentinel(
                 FieldValue(key="amount", value="1 234,50", page=1, confidence=ConfidenceLevel.HIGH),
             ], None
 
-    page = type("Page", (), {"page_number": 1})()
+    page = RenderedPage(page_number=1, mime_type="image/png", data_base64="AA==")
     monkeypatch.setattr("extractforms.extractor.render_pdf_pages", lambda *args, **kwargs: [page])
     monkeypatch.setattr("extractforms.extractor.MultimodalLLMBackend", _FakeBackend)
     monkeypatch.setattr(

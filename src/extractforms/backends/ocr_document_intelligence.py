@@ -24,6 +24,8 @@ class OCRPageProvider(Protocol):
 
         Returns:
             list[dict[str, object]]: OCR payload per page.
+            Expected keys for each payload are:
+            `page_number` (int, optional) and `lines` (list[str], optional).
         """
 
 
@@ -59,15 +61,25 @@ class OCRBackend:
         Args:
             pages (list[RenderedPage]): Rendered pages.
 
+        Raises:
+            BackendError: If pages are empty or no provider bridge is configured.
+
         Returns:
             tuple[SchemaSpec, PricingCall | None]: Inferred schema and no pricing.
         """
+        if not pages:
+            raise BackendError(
+                message=(
+                    "OCR schema inference requires at least one rendered page. Received an empty pages list."
+                ),
+            )
         ocr_pages = self._ocr_pages(pages)
         fields: list[SchemaField] = []
         seen_keys: set[str] = set()
 
-        for page_number, lines in self._iter_page_lines(ocr_pages):
+        for page_number, lines in self._get_page_lines(ocr_pages):
             for line in lines:
+                # Schema inference only needs key presence; empty values still define fields.
                 key, _ = _parse_key_value_line(line)
                 if key is None or key in seen_keys:
                     continue
@@ -91,16 +103,29 @@ class OCRBackend:
         self,
         pages: list[RenderedPage],
         keys: list[str],
+        *,
+        extra_instructions: str | None = None,
     ) -> tuple[list[FieldValue], PricingCall | None]:
         """Extract key/value pairs from OCR text.
 
         Args:
             pages (list[RenderedPage]): Rendered pages.
             keys (list[str]): Keys to extract.
+            extra_instructions (str | None): Unused prompt instructions for API compatibility.
+
+        Raises:
+            BackendError: If pages are empty or no provider bridge is configured.
 
         Returns:
             tuple[list[FieldValue], PricingCall | None]: Extracted values and no pricing.
         """
+        _ = extra_instructions
+        if not pages:
+            raise BackendError(
+                message=(
+                    "OCR value extraction requires at least one rendered page. Received an empty pages list."
+                ),
+            )
         requested_keys = {key.strip().lower(): key for key in keys}
         if not requested_keys:
             return [], None
@@ -108,7 +133,7 @@ class OCRBackend:
         values: list[FieldValue] = []
         found: set[str] = set()
 
-        for page_number, lines in self._iter_page_lines(self._ocr_pages(pages)):
+        for page_number, lines in self._get_page_lines(self._ocr_pages(pages)):
             for line in lines:
                 parsed_key, parsed_value = _parse_key_value_line(line)
                 if parsed_key is None or parsed_value is None:
@@ -150,7 +175,7 @@ class OCRBackend:
         return self._provider.extract_pages(pages)
 
     @staticmethod
-    def _iter_page_lines(ocr_pages: list[dict[str, object]]) -> list[tuple[int, list[str]]]:
+    def _get_page_lines(ocr_pages: list[dict[str, object]]) -> list[tuple[int, list[str]]]:
         """Normalize OCR payload into page-numbered lines.
 
         Args:
@@ -199,5 +224,10 @@ def _normalize_key(raw_key: str) -> str:
 
     Returns:
         str: Snake_case key.
+
+    Note:
+        This normalization is intentionally lossy for MVP usage. Distinct raw
+        labels can map to the same normalized key (for example, `Total-Amount`
+        and `Total_Amount` both become `total_amount`).
     """
     return re.sub(r"[^a-zA-Z0-9]+", "_", raw_key.strip().lower()).strip("_")
